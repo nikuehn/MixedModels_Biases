@@ -2,14 +2,599 @@
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
 date: "2023-09-14"
-output: html_document
+output:
+  html_document:
+    keep_md: true
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    highlight: tango
+link-citations: yes
+linkcolor: blue
+citecolor: blue
+urlcolor: blue
+bibliography: /Users/nico/BIBLIOGRAPHY/BIBTEX/references.bib
 ---
 
+
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.width=12,fig.height = 8, out.width = '50%', fig.show="hold",
+                      fig.path = 'pictures/',
+root.dir = '/Users/nico/GROUNDMOTION/PROJECTS/RESID_VAR/')
 ```
 
 # Introduction
 
+This page provides code for the simulations shown in ``Potential Biases in Empirical Ground-Motion Models by focusing on Point Estimates of Random Effects'', which highlights some biases that can occur when using point estimates of random effects/residuals in mixed effects ground-motion models.
+For details, see the paper.
 
-This page highlights some biases that can occur when using point estimates of random effects/residuals in mixed effects ground-motion models.
+In general, a ground-motion model (GMM) can be written as
+$$
+Y_{es} = f(\vec{c}; \vec{x}) + \delta B_e + \delta S_s + \delta WS_{es}
+$$
+or in matrix form as
+$$
+\vec{Y} = f(\vec{c}; \mathbf{x}) + \mathbf{Z} \vec{u} + \vec{\delta WS} 
+$$
+where $\mathbf{Z}$ is the design matrix of the random effects.
+It is importat to remember that in general the outcome of a mixed-effects regression will give point estimates of the random effects (the conditional modes),and that there is uncetainty around them.
+The conditional variances of the random effects are the diagonal entries of the following matrix
+$$
+\psi(\hat{\vec{u}})^2 = \phi_{SS}^2 \mathbf{\Lambda} \left(\mathbf{\Lambda}^T \mathbf{Z}^T \mathbf{Z} \mathbf{\Lambda} + \mathbf{I} \right)^{-1} \mathbf{\Lambda}
+$$
+where $\mathbf{\Lambda}$ is the relative covariance factor [@Bates2015].
+If this uncertainty is ignored, biases can occur, as we deomstrate throughut this page.
+In particular, the variances of the random effects are calculated as (example for $\tau$)
+$$
+\hat{\tau}^2 = \frac{1}{N_E}\sum_{i = 1}^{N_E} \widehat{\delta B}_i^2 + \frac{1}{N_E}\sum_{i = 1}^{N_E} \psi(\widehat{\delta B}_i)^2 
+$$
+which is the sum of the variance of the point estimates plus the average conditional variance.
+Hence, just esimating the variance (or standard deviation) of the point estimates will lead to an underestmation.
+
+## Set up
+
+Load required libraries, and define some plot options for `ggplot2`.
+
+```{r load-libraries, warning=FALSE, message=FALSE, echo=TRUE}
+library(ggplot2)
+library(lme4)
+library(cmdstanr)
+library(posterior)
+library(bayesplot)
+library(tidyverse)
+library(INLA)
+library(matrixStats)
+library(latex2exp)
+```
+
+```{r cmdstan-path, echo=FALSE}
+set_cmdstan_path('/Users/nico/GROUNDMOTION/SOFTWARE/cmdstan-2.32.2')
+```
+
+``` {r plot-options}
+theme_set(theme_bw() + theme(
+  axis.title = element_text(size = 30),
+  axis.text = element_text(size = 20),
+  plot.title = element_text(size = 30),
+  legend.text = element_text(size = 20),
+  legend.title = element_text(size = 20),
+  legend.key.width = unit(1, "cm"),
+  legend.box.background = element_rect(colour = "black"),
+  panel.grid = element_line(color = "gray",linewidth = 0.75)
+))
+
+breaks <- 10^(-10:10)
+minor_breaks <- rep(1:9, 21)*(10^rep(-10:10, each=9))
+```
+
+# Simlations using CB14 Data
+
+Use Californian data from @Campbell2014.
+
+```{r read-data-cb}
+data_reg <- read.csv(file.path('./Git/MixedModels_Biases/','/data','data_cb.csv'))
+print(dim(data_reg))
+print(head(data_reg))
+```
+
+```{r prepare-data-cb}
+n_rec <- nrow(data_reg)
+n_eq <- max(data_reg$eq)
+n_stat <- max(data_reg$stat)
+
+eq <- data_reg$eq
+stat <- data_reg$stat
+
+mageq <- unique(data_reg[,c('eq','M')])$M # event-specific magnitude
+magstat <- unique(data_reg[,c('stat','M_stat')])$M_stat # station-specific magnitude
+```
+
+## Homoscedastic Standard Deviations
+
+First, we simulate data using standard deviations that do not depend on any predictor variables, i.e. are homoscedastic.
+We do not simulate any fixed effects structure, in this example we focus biases in the estimation of standard deviations.
+
+First, we fix the standard deviations:
+``` {r sim1-fix-sd}
+tau_sim <- 0.4
+phi_s2s_sim <- 0.43
+phi_ss_sim <- 0.5
+```
+
+Next, we randomly sample event terms, site terms, and withn-event/within-site residuals, and combine them into total residuals (our target variable for this example).
+``` {r sim1-sample}
+set.seed(5618)
+# randomly sample residals, event and site terms
+dWS_sim <- rnorm(n_rec, sd = phi_ss_sim)
+dS_sim <- rnorm(n_stat, sd = phi_s2s_sim)
+dB_sim <- rnorm(n_eq, sd = tau_sim)
+
+# combine into total residual/target variable
+data_reg$y_sim <- dB_sim[eq] + dS_sim[stat] + dWS_sim
+```
+
+Now we perform the linear mixed effects regression using `lmer`.
+We use maximum likelihood instead of restricted maximum likelihood in this case to show the equivalnce of the calculations of standard deviations.
+
+```{r sim1-lmer}
+fit_sim <- lmer(y_sim ~ (1 | eq) + (1 | stat), data_reg, REML = FALSE)
+summary(fit_sim)
+```
+
+As we can see, the model parameters are quite well estimated.
+The intercept is close to zero, and the standard deviations are close to the values used in the simulation.
+
+Below, we extract the conditional modes and standard deviations of the random effects.
+We also calculate the within-event/within-site residuals, and approximate their standard deviation.
+
+``` {r sim1-extract}
+tmp <- as.data.frame(ranef(fit_sim))
+dS_lmer <- tmp[tmp$grpvar == 'stat','condval']
+dB_lmer <- tmp[tmp$grpvar == 'eq','condval']
+dWS_lmer <- data_reg$y_sim - predict(fit_sim)
+
+sd_dS_lmer <- tmp[tmp$grpvar == 'stat','condsd']
+sd_dB_lmer <- tmp[tmp$grpvar == 'eq','condsd']
+sd_dWS_lmer <- sqrt(sd_dB_lmer[eq]^2 + sd_dS_lmer[stat]^2) # approximately
+
+# alternative way to extract the random effects and conditional standard deviations
+# dS_lmer <- ranef(fit_sim)$stat$`(Intercept)`
+# dB_lmer <- ranef(fit_sim)$eq$`(Intercept)`
+# 
+# sd_dB_lmer <- as.numeric(arm::se.ranef(fit_sim)$eq)
+# sd_dS_lmer <- as.numeric(arm::se.ranef(fit_sim)$stat)
+```
+
+Next, we compare different standard deviations.
+For all terms, we show the true value used in the simulations, the standard devation of the sampled terms, and then the value from the fit using `lmer`.
+Then, we calculate the standard deviations according to Equation (4) in the paper (including uncertainty).
+We also show the standard deviations calculated based on the conditional modes of the random effects/residuals, as well as calculated using a sample from the conditional distribution.
+
+``` {r sim1-calc-sd}
+# compare estiamtes of standard deviations
+df <- data.frame(phi_s2s = c(phi_s2s_sim,
+                       sd(dS_sim),
+                       as.data.frame(VarCorr(fit_sim))$sdcor[1], 
+                       sqrt(sum(dS_lmer^2)/n_stat + sum(sd_dS_lmer^2)/n_stat),
+                       sd(dS_lmer),
+                       sd(rnorm(n_stat, mean = dS_lmer, sd = sd_dS_lmer))),
+           tau = c(tau_sim, 
+                   sd(dB_sim),
+                   as.data.frame(VarCorr(fit_sim))$sdcor[2], 
+                   sqrt(sum(dB_lmer^2)/n_eq + sum(sd_dB_lmer^2)/n_eq),
+                   sd(dB_lmer),
+                   sd(rnorm(n_eq, mean = dB_lmer, sd = sd_dB_lmer))),
+           phi_ss = c(phi_ss_sim,
+                      sd(dWS_sim),
+                      as.data.frame(VarCorr(fit_sim))$sdcor[3], 
+                      sqrt(sum(dWS_lmer^2)/n_rec + sum(sd_dWS_lmer^2)/n_rec), 
+                      sd(dWS_lmer),
+                      sd(rnorm(n_rec, mean = dWS_lmer, sd = sd_dWS_lmer))),
+           row.names = c('sim','sd(true)', 'lmer', 'with unc','sd(point estimate)','sd(sample)')
+)
+knitr::kable(df, digits = 5, row.names = TRUE,
+             caption = "Comparison of standard deviation estimates.")
+
+```
+
+As we can see, the values from `lmer` and calculated according to Equation (4) agree for $\tau$ and $\phi_{S2S}$.
+For $\phi_{SS}$, there is a small discrepancy, since the conditional standard deviations are just an approximation.
+These values are also close to the true ones, while the standard deviations calculated from the point estimates are underestimating the true values.
+The differences is largest for $\phi_{S2S}$, since there are several stations with only few recordings and thus large conditional standard deviations.
+Sampling from the conditional distrbution of the random effects/standard deviations leads to values that are close to the true ones.
+
+Since there are many stations with very few recordings, the value of $\phi_{S2S}$ is severel underestimated when calculated from the point estimates of the site terms.
+Thus, we now test whether what happesf we only use stations with at least 5 or 10 recordings.
+As we canseefrom the hstogram (which shows 200 repeated simulations), on average the values are closer to the true value, but some bias remains.
+If one chooses to go thsroute, one also has to account for the fact that the estimates are based on fewer stations.
+
+``` {r sim1-phis2s, cache=TRUE}
+n_sam <- 200
+res_s2s <- matrix(nrow = n_sam, ncol = 4)
+set.seed(5618)
+for(i in 1:n_sam) {
+  rect <- rnorm(n_rec, sd = phi_ss_sim)
+  statt <- rnorm(n_stat, sd = phi_s2s_sim)
+  eqtt <- rnorm(n_eq, sd = tau_sim)
+  
+  data_reg$y_sim <- eqtt[eq] + statt[stat] + rect
+  
+  fit_sim <- lmer(y_sim ~ (1 | eq) + (1 | stat), data_reg)
+  tmp <- ranef(fit_sim)$stat$`(Intercept)`
+  res_s2s[i,] <- c(as.data.frame(VarCorr(fit_sim))$sdcor[1],
+                   sd(tmp), sd(tmp[table(stat) >= 5]), sd(tmp[table(stat) >= 10]))
+}
+
+data.frame(res_s2s) |> set_names(c('lmer', 'all','N_rec >= 5','N_rec >= 10')) |>
+  pivot_longer(everything()) |>
+  ggplot() +
+  geom_density(aes(x = value, color = name),linewidth = 1.5, key_glyph = draw_key_path) +
+  geom_vline(xintercept = phi_s2s_sim, linewidth = 1.5) +
+  guides(color = guide_legend(title = NULL)) +
+  xlab('phi_S2S')
+```
+
+
+In GMM development, the standard deviations are often modeled as dependent on some predictor variables such as magnitude.
+@Bayless2018 contains a magnitude-dependent $\phi_{S2S}$, which is modeled using the mean magnitude of all records by station.
+@Kotha2022 performed a Breusch-Pagan test [@Breusch1979] for heteroscedasticity to test for magnitude dependence of $\tau$ and $\phi_{SS}$.
+Below, we calcuale the p-values for the simulated data (which we know is not heterosceastic).
+The nul hypothesis is that the data is homscedastc, and a low p-value is the probability of observingdata if the null hypothesis were true.
+Based on point estimates, one would conclude that site terms and within-event/within-site residuals are heteroscedastic.
+In this context, be aware of hypothesis tests [@Wasserstein2019,@Amrhein2019].
+
+```{r sim1-bptest}
+# calculate p-value of Breusch-Pagan test, testing for dependence on magnitude
+df <- data.frame(
+  dS = c(lmtest::bptest(dS ~ M, data = data.frame(M = magstat, dS = dS_lmer))$p.value,
+         lmtest::bptest(dS ~ M, data = data.frame(M = magstat, dS = rnorm(n_stat, mean = dS_lmer, sd = sd_dS_lmer)))$p.value,
+         lmtest::bptest(dS ~ M, data = data.frame(M = magstat, dS = dS_sim))$p.value),
+  
+  dB = c(lmtest::bptest(dB ~ M, data = data.frame(M = mageq, dB = dB_lmer))$p.value,
+         lmtest::bptest(dB ~ M, data = data.frame(M = mageq, dB = rnorm(n_eq, mean = dB_lmer, sd = sd_dB_lmer)))$p.value,
+         lmtest::bptest(dB ~ M, data = data.frame(M = mageq, dB = dB_sim))$p.value),
+  
+  dWS = c(lmtest::bptest(dWS ~ M, data = data.frame(M = data_reg$M, dWS = dWS_lmer))$p.value,
+          lmtest::bptest(dWS ~ M, data = data.frame(M = data_reg$M, dWS = rnorm(n_rec, mean = dWS_lmer, sd = sd_dWS_lmer)))$p.value,
+          lmtest::bptest(dWS ~ M, data = data.frame(M = data_reg$M, dWS = dWS_sim))$p.value),
+  row.names = c('point estimate','sample','true'))
+
+knitr::kable(df, digits = 5, row.names = TRUE,
+             caption = "P-values from Breusch-Pagan test.")
+```
+
+### Correlations
+
+Here, we briefly show that estimating correlations between random effects/residuals can be well estimated from point estimates.
+We simulate correlated terms from a bivariate normal distribution, perform a linear mixed-effects regression on each target variable separael, and then calcualte the correlation.
+The correlation coefficient is
+$$
+\rho(X,Y) = \frac{cov(X,Y)}{\sigma_X \sigma_Y}
+$$
+We compare calculating $\rho$ using the standard deviations of the point estimates in the denominator, as well as the ML estimate from `lmer`.
+The correlations are well estimated by using point estimates, but are underestimated when using the (RE)ML value in the denominator.
+
+
+``` {r sim2-corr}
+rho <- 0.9
+cov_tau <- matrix(c(tau_sim^2, rho * tau_sim * tau_sim,
+                    rho * tau_sim * tau_sim, tau_sim^2), ncol = 2)
+cov_s2s <- matrix(c(phi_s2s_sim^2, rho * phi_s2s_sim * phi_s2s_sim,
+                    rho * phi_s2s_sim * phi_s2s_sim, phi_s2s_sim^2), ncol = 2)
+cov_ss <- matrix(c(phi_ss_sim^2, rho * phi_ss_sim * phi_ss_sim,
+                    rho * phi_ss_sim * phi_ss_sim, phi_ss_sim^2), ncol = 2)
+
+eqt2 <- mvtnorm::rmvnorm(n_eq, sigma = cov_tau)
+statt2 <- mvtnorm::rmvnorm(n_stat, sigma = cov_s2s)
+rect2 <- mvtnorm::rmvnorm(n_rec, sigma = cov_ss)
+
+data_reg$y_sim1 <- eqt2[eq,1] + statt2[stat,1] + rect2[,1]
+data_reg$y_sim2 <- eqt2[eq,2] + statt2[stat,2] + rect2[,2]
+
+fit_sim1 <- lmer(y_sim1 ~ (1 | eq) + (1 | stat), data_reg)
+fit_sim2 <- lmer(y_sim2 ~ (1 | eq) + (1 | stat), data_reg)
+
+dB1 <- ranef(fit_sim1)$eq$`(Intercept)`
+dS1 <- ranef(fit_sim1)$stat$`(Intercept)`
+dWS1 <-data_reg$y_sim1 - predict(fit_sim1)
+
+dB2 <- ranef(fit_sim2)$eq$`(Intercept)`
+dS2 <- ranef(fit_sim2)$stat$`(Intercept)`
+dWS2 <-data_reg$y_sim2 - predict(fit_sim2)
+
+sds1 <- as.data.frame(VarCorr(fit_sim1))$sdcor
+sds2 <- as.data.frame(VarCorr(fit_sim2))$sdcor
+
+
+df <- data.frame(dS = c(rho, cor(dS1,dS2), cov(dS1,dS2)/(sd(dS1) * sd(dS2)), cov(dS1,dS2)/(sds1[1] * sds2[1])),
+           dB = c(rho, cor(dB1,dB2), cov(dB1,dB2)/(sd(dB1) * sd(dB2)), cov(dB1,dB2)/(sds1[2] * sds2[2])),
+           dWS = c(rho, cor(dWS1,dWS2), cov(dWS1,dWS2)/(sd(dWS1) * sd(dWS2)), cov(dWS1,dWS2)/(sds1[3] * sds2[3])),
+           row.names = c('true','cor','cov/sd(point estimate)','cov()/hat()'))
+knitr::kable(df, digits = 3, row.names = TRUE,
+             caption = "Estimated correlation coefficients.")
+```
+
+## Magnitude-Dependent Tau and Phi_SS
+
+In this section, we estimate magnitude dependent standard deviations.
+We simulate data with magnitude dependent $\tau$ and $\phi_{SS}$.
+The dependence has the form
+$$
+\tau(M) = \left\{
+  \begin{array}{ll}
+    {\tau}_1 & M \leq M_1 \\
+    {\tau}_1 + ({\tau}_2 - {\tau}_1) \frac{M - M_1}{M_2 - M_1} & M_1 < M < M_2 \\
+    {\tau}_2 & M \geq M_2
+  \end{array}
+  \right.
+$$
+with a form similar for $\phi_{SS}$.
+
+For this simulation, we also generate median predictions from fixed effects, in order to checkhow well the coefficients are estimated.
+
+First, we declare the values of the standard deviations for the simulations.
+``` {r sim2-hs-sd}
+# fix standard deviations and magnitude break points
+phi_s2s_sim <- 0.43
+tau_sim_val <- c(0.4,0.25)
+phi_ss_sim_val <- c(0.55,0.4)
+mb_tau <- c(5,6)
+mb_phi <- c(4.5,5.5)
+
+# define tau for each event
+# define linear predictors
+m1_eq <- 1 * (mageq < mb_tau[2]) - (mageq - mb_tau[1]) / (mb_tau[2] - mb_tau[1]) * (mageq > mb_tau[1] & mageq < mb_tau[2])
+m2_eq <- 1 * (mageq >= mb_tau[2]) + (mageq - mb_tau[1]) / (mb_tau[2] - mb_tau[1]) * (mageq > mb_tau[1] & mageq < mb_tau[2])
+
+tau_sim <- m1_eq * tau_sim_val[1] + m2_eq * tau_sim_val[2]
+
+# define phi_ss for each record
+# define linear predictors
+m1_rec <- 1 * (data_reg$M < mb_phi[2]) - (data_reg$M - mb_phi[1]) / (mb_phi[2] - mb_phi[1]) * (data_reg$M > mb_phi[1] & data_reg$M < mb_phi[2])
+m2_rec <- 1 * (data_reg$M >= mb_phi[2]) + (data_reg$M - mb_phi[1]) / (mb_phi[2] - mb_phi[1]) * (data_reg$M > mb_phi[1] & data_reg$M < mb_phi[2])
+
+phi_ss_sim <- m1_rec * phi_ss_sim_val[1] + m2_rec * phi_ss_sim_val[2]
+```
+
+Now, we declare the coefficients, which are taken from the ITA18 model of @Lanzano2019.
+We alsocompute the linear predictors for the model.
+
+``` {r sim2-hs-coeff}
+coeffs <- c(3.421046409, 0.193954090, -0.021982777, 0.287149291, -1.405635476, -0.002911264, -0.394575970)
+names_coeffs <- c("intercept", "M1", "M2", "MlogR", "logR", "R", "logVS")
+
+# Set linear predictors
+mh = 5.5
+mref = 5.324
+h = 6.924
+data_reg$M1 <- (data_reg$M-mh)*(data_reg$M<=mh)
+data_reg$M2 <- (data_reg$M-mh)*(data_reg$M>mh)
+data_reg$MlogR <- (data_reg$M-mref)*log10(sqrt(data_reg$Rjb^2+h^2))
+data_reg$logR <- log10(sqrt(data_reg$Rjb^2+h^2))
+data_reg$R <- sqrt(data_reg$Rjb^2+h^2)
+data_reg$logVS <- log10(data_reg$VS_gmean/800)*(data_reg$VS_gmean<=1500)+log10(1500/800)*(data_reg$VS_gmean>1500)
+```
+
+Now, we randomly sample event terms, site terms, and residuals, and combine with median predictions.
+
+``` {r sim2-hs-calc-y}
+set.seed(1701)
+dB_sim <- rnorm(n_eq, sd = tau_sim)
+dWS_sim <- rnorm(n_rec, sd = phi_ss_sim)
+dS_sim <- rnorm(n_stat, sd = phi_s2s_sim)
+
+data_reg$y_sim <- as.matrix(data_reg[,names_coeffs]) %*% coeffs + dB_sim[eq] + dS_sim[stat] + dWS_sim
+```
+
+Firs, we perform a linear mixed effects regression (which assumes homoscedastic standard deviations).
+In general, thecoefficients are estimated well, but the standard deviations are off.
+
+``` {r sim2-hs-lmer}
+# linear mixed effects regression
+fit_sim <- lmer(y_sim ~ M1 + M2 + MlogR + logR + R + logVS + (1 | eq) + (1 | stat), data_reg)
+summary(fit_sim)
+
+# extract conditional modes and standard deviations of residuals/random effects
+tmp <- as.data.frame(ranef(fit_sim))
+dS_lmer <- tmp[tmp$grpvar == 'stat','condval']
+dB_lmer <- tmp[tmp$grpvar == 'eq','condval']
+dWS_lmer <- data_reg$y_sim - predict(fit_sim)
+
+sd_dS_lmer <- tmp[tmp$grpvar == 'stat','condsd']
+sd_dB_lmer <- tmp[tmp$grpvar == 'eq','condsd']
+sd_dWS_lmer <- sqrt(sd_dB_lmer[eq]^2 + sd_dS_lmer[stat]^2) # approximately
+
+# calculate total resduals
+dR_lmer <- data_reg$y_sim - predict(fit_sim, re.form=NA)
+```
+
+Next, we run a Stan model [@Carpenter2016], <https://mc-stan.org/>, on the total residuals.
+In the Stan model, we can mdel the standard deviations to be magnitude dependent.
+Below, we compile the Stan model, and print out its code.
+
+``` {r sim2-hs-stan-part}
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_tauM2_phiM2.stan'))
+mod
+```
+
+Now, we declare the data for Stan, and run the model.
+To keep running time low,we only run 200 warm-up and 200sampling iterations.
+
+``` {r sim2-hs-stan-part-run, cache = TRUE}
+data_list <- list(
+  N = n_rec,
+  NEQ = n_eq,
+  NSTAT = n_stat,
+  Y = as.numeric(dR_lmer),
+  eq = eq,
+  stat = stat,
+  MEQ = mageq,
+  tau_mb = mb_tau,
+  phi_mb = mb_phi
+)
+
+fit <- mod$sample(
+  data = data_list,
+  seed = 8472,
+  chains = 4,
+  iter_sampling = 200,
+  iter_warmup = 200,
+  refresh = 100,
+  max_treedepth = 10,
+  adapt_delta = 0.8,
+  parallel_chains = 2,
+  show_messages = FALSE
+)
+print(fit$cmdstan_diagnose())
+print(fit$diagnostic_summary())
+draws_part <- fit$draws()
+
+summarise_draws(subset(draws_part, variable = c('ic','phi','tau'), regex = TRUE))
+```
+In general, the parameters are well estimated.
+There are not that many events for $M \geq 6$, so the value of $\tau_2$ is quite uncertain.
+
+In the following, we run a Stan model which estimates coefficients and magitude-dependent standard deviations at the same time.
+To improve sampling, we use the QR-decomposition of the desgn matrix.
+
+``` {r sim2-hs-stan-full, cache = TRUE}
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_full_qr_tauM2_phiM2.stan'))
+mod
+
+data_list <- list(
+  N = n_rec,
+  NEQ = n_eq,
+  NSTAT = n_stat,
+  K = length(coeffs),
+  Y = as.numeric(data_reg$y_sim),
+  X = data_reg[,c("M1", "M2", "MlogR", "logR", "R", "logVS")], # design matrix
+  eq = eq,
+  stat = stat,
+  MEQ = mageq,
+  tau_mb = mb_tau,
+  phi_mb = mb_phi
+)
+
+fit <- mod$sample(
+  data = data_list,
+  seed = 8472,
+  chains = 4,
+  iter_sampling = 200,
+  iter_warmup = 200,
+  refresh = 100,
+  max_treedepth = 10,
+  adapt_delta = 0.8,
+  parallel_chains = 2,
+  show_messages = FALSE
+)
+print(fit$cmdstan_diagnose())
+print(fit$diagnostic_summary())
+draws_full <- fit$draws()
+
+summarise_draws(subset(draws_full, variable = c('phi','tau'), regex = TRUE))
+summarise_draws(subset(draws_full, variable = c('^c\\['), regex = TRUE))
+```
+
+The standard deviations are well estimated (very similar to the values based on partitioning the total residuals from the `lmer` fit), and the coefficients are also well estimated.
+
+
+Below, we plot the posterior distribution of $\tau_1$ and $\tau_2$, together with the true value (black) and the value estimated from point estimates of the event terms in the respective magnitude bins (red), with (solid) and without (dashed) uncertainty.
+
+``` {r sim2-hs-plot-tau, out.width = '100%', fig.width=16}
+tmp <- mageq <= mb_tau[1]
+tmp <- sqrt((sum(dB_lmer[tmp]^2) + sum(sd_dB_lmer[tmp]^2)) / sum(tmp))
+
+p1 <- data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'tau_1', regex = FALSE),
+           full = subset(as_draws_matrix(draws_full), variable = 'tau_1', regex = FALSE)) |>
+  set_names(c('dR','full')) |>
+  pivot_longer(everything()) |>
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
+  geom_vline(xintercept = tau_sim_val[1], linewidth = 1.5) +
+  geom_vline(xintercept = sd(dB_lmer[mageq <= mb_tau[1]]), linewidth = 1.5, color = 'red') +
+  geom_vline(xintercept = tmp, , linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  guides(color = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.8,0.8)) +
+  xlab('tau_1')
+
+
+tmp <- mageq >= mb_tau[2]
+tmp <- sqrt((sum(dB_lmer[tmp]^2) + sum(sd_dB_lmer[tmp]^2)) / sum(tmp))
+
+p2 <- data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'tau_2', regex = FALSE),
+           full = subset(as_draws_matrix(draws_full), variable = 'tau_2', regex = FALSE)) |>
+  set_names(c('dR','full')) |>
+  pivot_longer(everything()) |>
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
+  geom_vline(xintercept = tau_sim_val[2], linewidth = 1.5) +
+  geom_vline(xintercept = sd(dB_lmer[mageq >= mb_tau[2]]), linewidth = 1.5, color = 'red') +
+  geom_vline(xintercept = tmp, , linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  guides(color = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.8,0.8)) +
+  xlab('tau_2')
+
+patchwork::wrap_plots(p1,p2)
+```
+
+While we see here that the values of $\tau_1$ and $\tau_2$ are estimated ok from `lmer`, in the paper we show results from 100 simulations which reveal on average a strong bias, whereas estimates from the Stan models are on average better.
+
+Below, we show posterior distributions of $\phi_{SS,1}$ and $\phi_{SS,2}$, similar to the plots for $\tau_1$ and $\tau_2$.
+In this case, we see strong biases for the estimates from `lmer`.
+
+``` {r sim2-hs-plot-phiss, out.width = '100%', fig.width=16}
+tmp <- data_reg$M <= mb_phi[1]
+tmp <- sqrt((sum(dWS_lmer[tmp]^2) + sum(sd_dWS_lmer[tmp]^2)) / sum(tmp))
+
+p1 <- data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_ss_1', regex = FALSE),
+           full = subset(as_draws_matrix(draws_full), variable = 'phi_ss_1', regex = FALSE)) |>
+  set_names(c('dR','full')) |>
+  pivot_longer(everything()) |>
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
+  geom_vline(xintercept = phi_ss_sim_val[1], linewidth = 1.5) +
+  geom_vline(xintercept = sd(dWS_lmer[data_reg$M <= mb_phi[1]]), linewidth = 1.5, color = 'red') +
+  geom_vline(xintercept = tmp, linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  guides(color = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.8,0.8)) +
+  xlab('phi_ss_1')
+
+
+tmp <- data_reg$M >= mb_phi[2]
+tmp <- sqrt((sum(dWS_lmer[tmp]^2) + sum(sd_dWS_lmer[tmp]^2)) / sum(tmp))
+
+p2 <- data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_ss_2', regex = FALSE),
+           full = subset(as_draws_matrix(draws_full), variable = 'phi_ss_2', regex = FALSE)) |>
+  set_names(c('dR','full')) |>
+  pivot_longer(everything()) |>
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
+  geom_vline(xintercept = phi_ss_sim_val[2], linewidth = 1.5) +
+  geom_vline(xintercept = sd(dWS_lmer[data_reg$M >= mb_phi[2]]), linewidth = 1.5, color = 'red') +
+  geom_vline(xintercept = tmp, linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  guides(color = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.8,0.8)) +
+  xlab('phi_ss_2')
+
+patchwork::wrap_plots(p1,p2)
+```
+
+And finally, the posterior dstribution of $\phi_{S2S}$.
+
+``` {r sim2-hs-plot-phis2s}
+data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_s2s', regex = FALSE),
+                 full = subset(as_draws_matrix(draws_full), variable = 'phi_s2s', regex = FALSE)) |>
+  set_names(c('dR','full')) |>
+  pivot_longer(everything()) |>
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
+  geom_vline(xintercept = phi_s2s_sim, linewidth = 1.5) +
+  geom_vline(xintercept = sd(dS_lmer), linewidth = 1.5, color = 'red') +
+  geom_vline(xintercept = sqrt((sum(dS_lmer^2) + sum(sd_dS_lmer^2)) / n_stat),
+             linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  guides(color = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.3,0.8)) +
+  xlab('phi_S2S')
+```
+
+# References
