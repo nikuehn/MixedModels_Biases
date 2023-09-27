@@ -1,16 +1,4 @@
 /*********************************************
-Stan program to obtain VCM parameters
-lower dimensions is used (event terms/station terms)
-
-This model explicitly estimates the latent (uncorrelated) event terms and station terms
-
-event constant is correlated with Matern 1/2
-
-station constant is correlated with Matern 1/2
-lnVs scaling is correlated with Matern 1/2
-both station terms in one cov matrix
-
-cell-specific attenuation
  ********************************************/
 
 data {

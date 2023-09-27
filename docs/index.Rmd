@@ -263,57 +263,6 @@ knitr::kable(df, digits = 5, row.names = TRUE,
              caption = "P-values from Breusch-Pagan test.")
 ```
 
-### Correlations
-
-Here, we briefly show that estimating correlations between random effects/residuals can be well estimated from point estimates.
-We simulate correlated terms from a bivariate normal distribution, perform a linear mixed-effects regression on each target variable separael, and then calcualte the correlation.
-The correlation coefficient is
-$$
-\rho(X,Y) = \frac{cov(X,Y)}{\sigma_X \sigma_Y}
-$$
-We compare calculating $\rho$ using the standard deviations of the point estimates in the denominator, as well as the ML estimate from `lmer`.
-The correlations are well estimated by using point estimates, but are underestimated when using the (RE)ML value in the denominator.
-
-
-``` {r sim2-corr}
-rho <- 0.9
-cov_tau <- matrix(c(tau_sim^2, rho * tau_sim * tau_sim,
-                    rho * tau_sim * tau_sim, tau_sim^2), ncol = 2)
-cov_s2s <- matrix(c(phi_s2s_sim^2, rho * phi_s2s_sim * phi_s2s_sim,
-                    rho * phi_s2s_sim * phi_s2s_sim, phi_s2s_sim^2), ncol = 2)
-cov_ss <- matrix(c(phi_ss_sim^2, rho * phi_ss_sim * phi_ss_sim,
-                    rho * phi_ss_sim * phi_ss_sim, phi_ss_sim^2), ncol = 2)
-
-eqt2 <- mvtnorm::rmvnorm(n_eq, sigma = cov_tau)
-statt2 <- mvtnorm::rmvnorm(n_stat, sigma = cov_s2s)
-rect2 <- mvtnorm::rmvnorm(n_rec, sigma = cov_ss)
-
-data_reg$y_sim1 <- eqt2[eq,1] + statt2[stat,1] + rect2[,1]
-data_reg$y_sim2 <- eqt2[eq,2] + statt2[stat,2] + rect2[,2]
-
-fit_sim1 <- lmer(y_sim1 ~ (1 | eq) + (1 | stat), data_reg)
-fit_sim2 <- lmer(y_sim2 ~ (1 | eq) + (1 | stat), data_reg)
-
-dB1 <- ranef(fit_sim1)$eq$`(Intercept)`
-dS1 <- ranef(fit_sim1)$stat$`(Intercept)`
-dWS1 <-data_reg$y_sim1 - predict(fit_sim1)
-
-dB2 <- ranef(fit_sim2)$eq$`(Intercept)`
-dS2 <- ranef(fit_sim2)$stat$`(Intercept)`
-dWS2 <-data_reg$y_sim2 - predict(fit_sim2)
-
-sds1 <- as.data.frame(VarCorr(fit_sim1))$sdcor
-sds2 <- as.data.frame(VarCorr(fit_sim2))$sdcor
-
-
-df <- data.frame(dS = c(rho, cor(dS1,dS2), cov(dS1,dS2)/(sd(dS1) * sd(dS2)), cov(dS1,dS2)/(sds1[1] * sds2[1])),
-           dB = c(rho, cor(dB1,dB2), cov(dB1,dB2)/(sd(dB1) * sd(dB2)), cov(dB1,dB2)/(sds1[2] * sds2[2])),
-           dWS = c(rho, cor(dWS1,dWS2), cov(dWS1,dWS2)/(sd(dWS1) * sd(dWS2)), cov(dWS1,dWS2)/(sds1[3] * sds2[3])),
-           row.names = c('true','cor','cov/sd(point estimate)','cov()/hat()'))
-knitr::kable(df, digits = 3, row.names = TRUE,
-             caption = "Estimated correlation coefficients.")
-```
-
 ## Magnitude-Dependent Tau and Phi_SS
 
 In this section, we estimate magnitude dependent standard deviations.
@@ -596,5 +545,613 @@ data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_s2s', regex 
   theme(legend.position = c(0.3,0.8)) +
   xlab('phi_S2S')
 ```
+
+We can conclude from this smulation (and the repeated ones in the paper) that to the magnitude-dependent standard deviations can be estimated using Stan from total residuals, but one should also account for uncertainty.
+Estimating the values from binned random effects/resduals can work but leads to a larger bias.
+
+Our focus is on estmating the magnitude-dependent standard deviations, but as a check we also plot the posterior distrbutions of the coefficients for the full stan model, together with the true values (black) and `lmer` estimates.
+
+```{r sim2-hs-coeffs, out.width = '100%', fig.width=16}
+df <- data.frame(Parameter = c('c[1]','c[2]','c[3]','c[4]','c[5]','c[6]','c[7]'),
+           true = coeffs, lmer = fixef(fit_sim))
+
+mcmc_hist(draws_full,regex_pars = 'c\\[') +
+  geom_vline(aes(xintercept = true), data = df, linewidth = 1.5) +
+  geom_vline(aes(xintercept = lmer), data = df, linewidth = 1.5, color = 'red')
+```
+
+## Scaling from Point Estimates of Random Effects
+
+Random effects are sometimes used to estimate scaling of ground motions wth respect to new parameters, such as parameters associated with horizontal-to-vertical ratios.
+To assess poential biases, we simulate synthetic data using the ITA18 functional form, and then estimate a model without $V_{S30}$-scaling.
+We then estimate the $V_{S30}$-scaling coefficient from site terms.
+
+The coefficients and linear predictors are already set.
+Here, we use standard deviations in $log_{10}$-units, which is what was used in @Lanzano2019.
+We generate some data, and fit a full model (including $V_{S30}$-scaling).
+
+``` {r sim3-vs-1}
+tau_sim <- 0.17
+phi_s2s_sim <- 0.23
+phi_sim <- 0.2
+
+set.seed(1701)
+dB_sim <- rnorm(n_eq, mean =0, sd = tau_sim)
+dS_sim <- rnorm(n_stat, mean =0, sd = phi_s2s_sim)
+dWS_sim <- rnorm(n_rec, mean = 0, sd = phi_sim)
+
+data_reg$y_sim <- as.matrix(data_reg[,names_coeffs]) %*% coeffs + dB_sim[eq] + dS_sim[stat] + dWS_sim
+fit_sim <- lmer(y_sim ~ M1 + M2 + MlogR + logR + R + logVS + (1|eq) + (1|stat), data_reg)
+summary(fit_sim)
+```
+
+Now, we fit the model with the `logVS` term, and then use linear regression on the estimated station term to estiamte the coefficient.
+To account for stations with few recordings, we also use only estmated site terms from staions with at least 10 records.
+We also fit linear mixed effects model on the total residuals.
+
+
+``` {r sim3-vs-fit2}
+fit_sim2 <- lmer(y_sim ~ M1 + M2 + MlogR + logR + R + (1|eq) +(1|stat), data_reg)
+
+deltaS_lmer2 <- ranef(fit_sim2)$stat$`(Intercept)`
+deltaB_lmer2 <- ranef(fit_sim2)$eq$`(Intercept)`
+data_reg$deltaR_lmer2 <- data_reg$y_sim - predict(fit_sim2, re.form=NA)
+tmp <- data.frame(unique(data_reg[,c('stat','logVS')]), deltaS_lmer2 = deltaS_lmer2)
+
+### all station terms
+fit_sim2a <- lm(deltaS_lmer2 ~ logVS, tmp)
+# summary(fit_sim2a)
+
+### subset station ters
+idx <- as.numeric(which(table(stat) >= 10))
+fit_sim3a <- lm(deltaS_lmer2 ~ logVS, tmp[idx,])
+# summary(fit_sim3a)
+
+### total residuals
+fit_sim4 <- lmer(deltaR_lmer2 ~ logVS + (1|eq) + (1|stat), data_reg)
+
+df <- data.frame(name = c('true','full','dS(all)','dS(N>=10)','dR'),
+           value = c(coeffs[7], fixef(fit_sim)[7], fit_sim2a$coefficients[2],
+                     fit_sim3a$coefficients[2], fixef(fit_sim4)[2]))
+
+knitr::kable(df, digits = 5, row.names = TRUE,
+             caption = "Estimated VS30-scaling coefficient")
+```
+
+As we can see, the $V_{S30}$-scaling coefficient estimated from site terms $\delta S$ is strongly biased.
+The bias persists even if only stations with 10 or more recordings are used.
+A mixed-effects model on the total residuals works well to estimate the coefficient.
+
+## Correlations between Random Effects
+
+Here, we briefly show that estimating correlations between random effects/residuals can be well estimated from point estimates.
+We simulate correlated terms from a bivariate normal distribution, perform a linear mixed-effects regression on each target variable separael, and then calcualte the correlation.
+The correlation coefficient is
+$$
+\rho(X,Y) = \frac{cov(X,Y)}{\sigma_X \sigma_Y}
+$$
+We compare calculating $\rho$ using the standard deviations of the point estimates in the denominator, as well as the ML estimate from `lmer`.
+The correlations are well estimated by using point estimates, but are underestimated when using the (RE)ML value in the denominator.
+
+
+``` {r sim2-corr}
+tau_sim <- 0.4
+phi_s2s_sim <- 0.43
+phi_ss_sim <- 0.5
+
+rho <- 0.9
+cov_tau <- matrix(c(tau_sim^2, rho * tau_sim * tau_sim,
+                    rho * tau_sim * tau_sim, tau_sim^2), ncol = 2)
+cov_s2s <- matrix(c(phi_s2s_sim^2, rho * phi_s2s_sim * phi_s2s_sim,
+                    rho * phi_s2s_sim * phi_s2s_sim, phi_s2s_sim^2), ncol = 2)
+cov_ss <- matrix(c(phi_ss_sim^2, rho * phi_ss_sim * phi_ss_sim,
+                    rho * phi_ss_sim * phi_ss_sim, phi_ss_sim^2), ncol = 2)
+
+eqt2 <- mvtnorm::rmvnorm(n_eq, sigma = cov_tau)
+statt2 <- mvtnorm::rmvnorm(n_stat, sigma = cov_s2s)
+rect2 <- mvtnorm::rmvnorm(n_rec, sigma = cov_ss)
+
+data_reg$y_sim1 <- eqt2[eq,1] + statt2[stat,1] + rect2[,1]
+data_reg$y_sim2 <- eqt2[eq,2] + statt2[stat,2] + rect2[,2]
+
+fit_sim1 <- lmer(y_sim1 ~ (1 | eq) + (1 | stat), data_reg)
+fit_sim2 <- lmer(y_sim2 ~ (1 | eq) + (1 | stat), data_reg)
+
+dB1 <- ranef(fit_sim1)$eq$`(Intercept)`
+dS1 <- ranef(fit_sim1)$stat$`(Intercept)`
+dWS1 <-data_reg$y_sim1 - predict(fit_sim1)
+
+dB2 <- ranef(fit_sim2)$eq$`(Intercept)`
+dS2 <- ranef(fit_sim2)$stat$`(Intercept)`
+dWS2 <-data_reg$y_sim2 - predict(fit_sim2)
+
+sds1 <- as.data.frame(VarCorr(fit_sim1))$sdcor
+sds2 <- as.data.frame(VarCorr(fit_sim2))$sdcor
+
+
+df <- data.frame(dS = c(rho, cor(dS1,dS2), cov(dS1,dS2)/(sd(dS1) * sd(dS2)), cov(dS1,dS2)/(sds1[1] * sds2[1])),
+           dB = c(rho, cor(dB1,dB2), cov(dB1,dB2)/(sd(dB1) * sd(dB2)), cov(dB1,dB2)/(sds1[2] * sds2[2])),
+           dWS = c(rho, cor(dWS1,dWS2), cov(dWS1,dWS2)/(sd(dWS1) * sd(dWS2)), cov(dWS1,dWS2)/(sds1[3] * sds2[3])),
+           row.names = c('true','cor','cov/sd(point estimate)','cov()/hat()'))
+knitr::kable(df, digits = 3, row.names = TRUE,
+             caption = "Estimated correlation coefficients.")
+```
+
+## Correlation with e.g. Stress Drop
+
+```{r sim-corr-lmer}
+tau_sim <- 0.4
+phi_s2s_sim <- 0.43
+phi_ss_sim <- 0.5
+
+rho <- 0.7
+tau2 <- 1
+
+cov_tau <- matrix(c(tau_sim^2, rho * tau_sim * tau2, 
+                    rho * tau_sim * tau2, tau2^2), ncol = 2)
+
+set.seed(5618)
+deltaWS_sim <- rnorm(n_rec, sd = phi_ss_sim)
+deltaS_sim <- rnorm(n_stat, sd = phi_s2s_sim)
+eqt2 <- mvtnorm::rmvnorm(n_eq, sigma = cov_tau)
+
+y_sim <- eqt2[eq,1] + deltaS_sim[stat] + deltaWS_sim
+data_reg$y_sim <- y_sim
+
+fit_lmer_sim <- lmer(y_sim ~ (1 | eq) + (1 | stat), data_reg)
+deltaB_lmer <- ranef(fit_lmer_sim)$eq$`(Intercept)`
+
+cor(deltaB_lmer, eqt2[,2])
+```
+
+The fit by itself is ok, but in this case the correlation is underestimated.
+For the paper, we have repeated this simulation 100 times, and on average we observe a bias.
+
+In the following, we fit a Stan model to the data in which we directly estimate the correlation between the event terns and the other event related variable $E$during te model fitting phase, i.e. during partitioning.
+This implicitly takes the uncertainty in the estimated event terms into account.
+We model the two variables as a bivariate normal distribution, and use the conditional distribution of $\delta B$ given $E$ as the prior distribution for $\delta B$
+$$
+\begin{aligned}
+  \delta B &\sim N(\mu_s, \tau_s) \\
+  \mu_s &= \frac{\tau}{\sigma_{E}} \; \rho \;E \\
+  \tau_s &= \sqrt{(1 - \rho^2) \tau^2}
+\end{aligned}
+$$
+
+``` {r sim-corr-stan}
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_wvar_corr.stan'))
+
+data_list_cor <- list(
+  N = n_rec,
+  NEQ = n_eq,
+  NSTAT = n_stat,
+  Y = data_reg$y_sim,
+  E = eqt2[,2],
+  eq = eq,
+  stat = stat,
+  alpha = c(1,1,1)
+)
+
+fit <- mod$sample(
+  data = data_list_cor,
+  seed = 8472,
+  chains = 4,
+  iter_sampling = 200,
+  iter_warmup = 200,
+  refresh = 100,
+  max_treedepth = 10,
+  adapt_delta = 0.8,
+  parallel_chains = 2,
+  show_messages = FALSE
+)
+print(fit$cmdstan_diagnose())
+print(fit$diagnostic_summary())
+draws_corr <- fit$draws()
+
+
+summarise_draws(subset(draws_corr, variable = c('rho', 'phi', 'tau'), regex = TRUE))
+```
+
+The fit looks good, and we also get a good estimate of $\rho$.
+
+Below, we show the posterior distribution of the correlation coefficient $\rho$, together with the true value (black), the correlation between point estimates $\widehat{\delta B}$ and $E$ from `lmer` (red), and the correlation between the mean event terms (point estimates) from the Stan fit (blue).
+The black dashed line is the mean of he posterior distribution of `rho`.
+
+``` {r sm-corr-stan}
+mcmc_hist(draws_corr, pars = 'rho') +
+  vline_at(rho, linewidth = 1.5) +
+  vline_at(colMeans(subset(as_draws_matrix(draws_corr), variable = 'rho', regex = FALSE)),
+                    linewidth = 1.5, linetype = 'dashed') +
+  vline_at(cor(deltaB_lmer, eqt2[,2]), linewidth = 1.5, color = 'red') +
+  vline_at(cor(eqt2[,2], colMeans(subset(as_draws_matrix(draws_corr), variable = 'eqterm', regex = TRUE))),
+           linewidth = 1.5, color = 'blue')
+```
+
+# Simulations using Italian Data
+
+Now, we use the Italian data of @Lanzano2019 (see also @Caramenti2022) for simulations with spatial/nonergodic models.
+This data was used in @Kuehn2022b for nonergodic model comparison, which made it easy to set up.
+
+First, we read and prepare the data.
+
+``` {r italy-data}
+data_it <- read.csv(file.path('./Git/MixedModels_Biases/','/data','italian_data_pga_id_utm_stat.csv'))
+
+# Set linear predictors
+mh = 5.5
+mref = 5.324
+h = 6.924
+attach(data_it)
+b1 = (mag-mh)*(mag<=mh)
+b2 = (mag-mh)*(mag>mh)
+c1 = (mag-mref)*log10(sqrt(JB_complete^2+h^2))
+c2 = log10(sqrt(JB_complete^2+h^2))
+c3 = sqrt(JB_complete^2+h^2)
+f1 = as.numeric(fm_type_code == "SS")
+f2 = as.numeric(fm_type_code == "TF")
+k = log10(vs30/800)*(vs30<=1500)+log10(1500/800)*(vs30>1500)
+y = log10(rotD50_pga)
+detach(data_it)
+
+n_rec <- length(b1)
+eq <- data_it$EQID
+stat <- data_it$STATID
+n_eq <- max(eq)
+n_stat <- max(stat)
+n_rec <- nrow(data_it)
+
+mageq <- unique(data_it[,c('EQID','mag')])[,2]
+
+data_reg <- data.frame(Y = y,
+                       M1 = b1,
+                       M2 = b2,
+                       MlogR = c1,
+                       logR = c2,
+                       R = c3,
+                       Fss = f1,
+                       Frv = f2,
+                       logVS = k,
+                       eq = eq,
+                       stat = stat,
+                       intercept = 1,
+                       M = data_it$mag
+)
+
+# coefficients from ITA18
+coeffs <- c(3.421046409, 0.193954090, -0.021982777, 0.287149291,
+            -1.405635476, -0.002911264, 0.085983743, 0.010500239,
+            -0.394575970)
+names_coeffs <- c("intercept", "M1", "M2", "MlogR", "logR", "R", "Fss", "Frv", "logVS")
+```
+
+We simulate data for some spatial models on the Italian data, and we use INLA (<https://www.r-inla.org/>) to estimate the models.
+Below, we set the penalize complexity prior [@Simpson2017] for the standard deviations, used throughout.
+
+``` {r italy-inla-priors}
+prior_prec_tau <- list(prec = list(prior = 'pc.prec', param = c(0.3, 0.01)))
+prior_prec_phiS2S    <- list(prec = list(prior = 'pc.prec', param = c(0.3, 0.01))) 
+prior_prec_phiSS    <- list(prec = list(prior = 'pc.prec', param = c(0.3, 0.01)))
+```
+
+## Spatial correlations of Site Terms
+
+In nonergodic models, site terms are often modeled as spatially correlated.
+The spatial correlaion structure can be assess from point estimates of the site terms.
+Here, we simulate some data with spatally correlated site terms, to check whether we can get the model parameters back.
+
+We use the Mat\'ern covariance function for the spatial correlation of the site terms, which is defined below.
+
+``` {r cmatern}
+cMatern <- function(h, nu, kappa) {
+  ifelse(h > 0, besselK(h * kappa, nu) * (h * kappa)^nu / 
+           (gamma(nu) * 2^(nu - 1)), 1)
+}
+
+# Function to sample from zero mean multivariate normal
+rmvnorm0 <- function(n, cov, R = NULL) { 
+  if (is.null(R))
+    R <- chol(cov)
+  
+  return(crossprod(R, matrix(rnorm(n * ncol(R)), ncol(R))))
+}
+```
+
+Next we define the coefficients, spatial range, and standard deviations for the simulation.
+
+``` {r sim-it-spatial-def}
+# unique station coordinates
+co_stat_utm <- unique(data_it[,c("STATID", "X_stat","Y_stat")])[,c(2,3)]
+
+range <- 30 # spatial range
+nu <- 1
+kappa <- sqrt(8*nu)/range
+
+# standard deviations
+wvar <- 0.65 # variance ratio for phi_s2s
+tau_sim <- 0.17
+phi_s2s_sim <- 0.23
+phi_s2s_0 <- sqrt((1 - wvar) * phi_s2s_sim^2)
+phi_s2s_c <- sqrt(wvar * phi_s2s_sim^2)
+phi_ss_sim <- 0.2
+
+cov <- phi_s2s_c^2 * cMatern(as.matrix(dist(co_stat_utm)), nu, kappa) + diag(10^-9, n_stat)
+```
+
+To se R-INLA with the ``stochastic partial differential equation'' (SPDE) approach, we need to define a mesh.
+``` {r sim-it-spatial-mesh}
+max.edge2    <- 5 
+bound.outer2 <- 40 
+mesh = inla.mesh.2d(loc=co_stat_utm,
+                    max.edge = c(1,5)*max.edge2,
+                    cutoff = max.edge2,
+                    offset = c(5 * max.edge2, bound.outer2))
+print(mesh$n)
+```
+
+Now we define priors for the standard deviations (based on @Simpson2017), the SPDE prior, the projecion matrix `A`, and the formula.
+
+``` {r sim-it-spatial-spde}
+spde_stat <- inla.spde2.pcmatern(
+  # Mesh and smoothness parameter
+  mesh = mesh, alpha = 2,
+  # P(practic.range < 0.3) = 0.5
+  prior.range = c(100, 0.9),
+  # P(sigma > 1) = 0.01
+  prior.sigma = c(.3, 0.01))
+
+A_stat <- inla.spde.make.A(mesh, loc = as.matrix(co_stat_utm[stat,]))
+A_stat_unique   <- inla.spde.make.A(mesh, loc = as.matrix(co_stat_utm))
+idx_stat   <- inla.spde.make.index("idx_stat",spde_stat$n.spde)
+
+# formula to be used on the total residuals
+form_spatial_total <- y ~ 0 + intercept + 
+  f(eq, model = "iid", hyper = prior_prec_tau) + 
+  f(stat, model = "iid",hyper = prior_prec_phiS2S) +
+  f(idx_stat, model = spde_stat)
+
+# formula for the full fit
+form_spatial_stat <- y ~ 0 + intercept + 
+  M1 + M2 + MlogR + logR + R + Fss + Frv + logVS +
+  f(eq, model = "iid", hyper = prior_prec_tau) + 
+  f(stat, model = "iid",hyper = prior_prec_phiS2S) +
+  f(idx_stat, model = spde_stat)
+
+# formua for fit from site terms
+form_spatial_stat_u <- y ~ 0 + intercept + f(idx_stat, model = spde_stat)
+```
+
+
+Now, we sample the event terms, ste terms, spatially corrlated site terms, and within-event/within-site residuals, and combine them with the median predictions from ITA18.
+We then fit a `lmer` model to the data.
+
+``` {r sim-it-spatial-sample}
+set.seed(8472)
+dB_sim <- rnorm(n_eq, mean =0, sd = tau_sim)
+dS_sim <- rnorm(n_stat, mean =0, sd = phi_s2s_0)
+dWS_sim <- rnorm(n_rec, mean = 0, sd = phi_ss_sim)
+
+data_reg$y_sim <- as.matrix(data_reg[,names_coeffs]) %*% coeffs +
+  dB_sim[eq] + dS_sim[stat] + dWS_sim + rmvnorm0(1, cov)[stat]
+
+fit_sim <- lmer(y_sim ~ M1 + M2 + MlogR + logR + R + Fss + Frv + logVS + (1|eq) + (1|stat), data_reg)
+dR_lmer <- data_reg$y_sim - predict(fit_sim, re.form=NA)
+dS_lmer <- ranef(fit_sim)$stat$`(Intercept)`
+```
+
+Now, we fit the Inla models.
+We fit the full model (fixed and random effects), a model onthe total residuals, and a model on the site terms from the `lmer` fit.
+
+``` {r sim-it-spatial-inla-fit, cache = TRUE}
+#### full model
+# create the stack
+stk_spatial_stat <- inla.stack(
+  data = list(y = data_reg$y_sim),
+  A = list(A_stat, 1), 
+  effects = list(idx_stat = idx_stat,
+                 data_reg
+  ))
+
+fit_inla_spatial_stat <- inla(form_spatial_stat,
+                              data = inla.stack.data(stk_spatial_stat),
+                              control.predictor = list(A = inla.stack.A(stk_spatial_stat)),
+                              family="gaussian",
+                              control.family = list(hyper = prior_prec_phiSS),
+                              control.inla = list(int.strategy = "eb", strategy = "gaussian"),
+                              quantiles = c(0.05, 0.5, 0.95)
+)
+
+### ft from site terms
+data_reg_stat <- data.frame(
+  dS = dS_lmer,
+  intercept = 1
+)
+
+# create the stack
+stk_spatial_stat_u <- inla.stack(
+  data = list(y = data_reg_stat$dS),
+  A = list(A_stat_unique, 1), 
+  effects = list(idx_stat = idx_stat,
+                 data_reg_stat
+  ))
+
+fit_inla_spatial_stat_u <- inla(form_spatial_stat_u,
+                                data = inla.stack.data(stk_spatial_stat_u),
+                                control.predictor = list(A = inla.stack.A(stk_spatial_stat_u)),
+                                family="gaussian",
+                                control.family = list(hyper = prior_prec_phiS2S),
+                                control.inla = list(int.strategy = "eb", strategy = "gaussian"),
+                                quantiles = c(0.05, 0.5, 0.95)
+)
+
+#### fit from total residuals
+data_reg$deltaR <- dR_lmer
+# create the stack
+stk_spatial_total <- inla.stack(
+  data = list(y = data_reg$deltaR),
+  A = list(A_stat, 1), 
+  effects = list(idx_stat = idx_stat,
+                 data_reg
+  ))
+
+fit_inla_spatial_total <- inla(form_spatial_total,
+                               data = inla.stack.data(stk_spatial_total),
+                               control.predictor = list(A = inla.stack.A(stk_spatial_total)),
+                               family="gaussian",
+                               control.family = list(hyper = prior_prec_phiSS),
+                               control.inla = list(int.strategy = "eb", strategy = "gaussian"),
+                               quantiles = c(0.05, 0.5, 0.95)
+)
+```
+
+Below, we plot the posterior distributions of the spatial range as well as the associated standard deviation.
+
+``` {r sim-it-spatial-results, out.width = '100%', fig.width=16}
+p1 <- rbind(
+  data.frame(inla.tmarginal(function(x) exp(x), 
+                                fit_inla_spatial_stat$internal.marginals.hyperpar$`log(Range) for idx_stat`),
+             mod = "full"),
+  data.frame(inla.tmarginal(function(x) exp(x), 
+                                fit_inla_spatial_stat_u$internal.marginals.hyperpar$`log(Range) for idx_stat`),
+             mod = "dS"),
+  data.frame(inla.tmarginal(function(x) exp(x), 
+                                fit_inla_spatial_total$internal.marginals.hyperpar$`log(Range) for idx_stat`),
+             mod = "dR")
+) %>%
+  ggplot() +
+  geom_line(aes(x = x, y = y, color = mod), linewidth = 1.5) +
+  geom_vline(xintercept = range, linewidth = 1.5) +
+  labs(x = 'spatial range (km)', 'density') +
+  theme(legend.position = c(0.8,0.8)) +
+  guides(color = guide_legend(title = NULL))
+
+p2 <- rbind(
+  data.frame(inla.tmarginal(function(x) exp(x), 
+                            fit_inla_spatial_stat$internal.marginals.hyperpar$`log(Stdev) for idx_stat`),
+             mod = "full", type = 'phi_s2s_c'),
+  data.frame(inla.tmarginal(function(x) exp(x), 
+                            fit_inla_spatial_stat_u$internal.marginals.hyperpar$`log(Stdev) for idx_stat`),
+             mod = "dS", type = 'phi_s2s_c'),
+  data.frame(inla.tmarginal(function(x) exp(x), 
+                            fit_inla_spatial_total$internal.marginals.hyperpar$`log(Stdev) for idx_stat`),
+             mod = "dR", type = 'phi_s2s_c'),
+  data.frame(inla.tmarginal(function(x) sqrt(exp(-x)), 
+                            fit_inla_spatial_stat$internal.marginals.hyperpar$`Log precision for stat`),
+             mod = "full", type = 'phi_s2s_0'),
+  data.frame(inla.tmarginal(function(x) sqrt(exp(-x)), 
+                            fit_inla_spatial_stat_u$internal.marginals.hyperpar$`Log precision for the Gaussian observations`),
+             mod = "dS", type = 'phi_s2s_0'),
+  data.frame(inla.tmarginal(function(x) sqrt(exp(-x)), 
+                            fit_inla_spatial_total$internal.marginals.hyperpar$`Log precision for stat`),
+             mod = "dR", type = 'phi_s2s_0')
+) %>%
+  ggplot() +
+  geom_line(aes(x = x, y = y, color = mod, linetype = type), linewidth = 1.5) +
+  geom_vline(xintercept = phi_s2s_c, linewidth = 1.5, linetype = 'dashed') +
+  geom_vline(xintercept = phi_s2s_0, linewidth = 1.5) +
+  labs(x = 'phi_S2S_c', 'density') +
+  theme(legend.position = c(0.8,0.8)) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL))
+
+patchwork::wrap_plots(p1, p2)
+```
+
+We can see that the spatial range is quite well estimated for all approaches, and that the full model and the model based on total residuals give almost the same results.
+The model based on site terms does not lead to good results for the standard deviations, n particular for $\phi_{S2S,c}$, which is severely underestimated.
+The relative sizes ofstandard devations based on the fit from $\delta S$ are wrongly estimated.
+
+## Cell-specific atteuation
+
+In this section, we simulate data based on the cell-specific attenuation model [@Kuehn2019,@Dawood2013], and estima the model parameters using the total model, aswell as from within-event/within-site residuals.
+
+Read in the cell-specific distances, and some definitions.
+
+``` {r sim-it-cell-data}
+# read in cell-specific attenuation
+data_dm <- rstan::read_rdump(file.path('./Git/MixedModels_Biases/','/data','dm_25x25.Rdata'))
+dm_sparse <- as(data_dm$RC,"dgCMatrix") / 100 # divide by 100 to avoid small values
+n_cell <- data_dm$NCELL
+
+prior_prec_cell    <- list(prec = list(prior = 'pc.prec', param = c(0.5, 0.01))) 
+data_reg$idx_cell <- 1:n_rec
+```
+
+Now we define the parameters for the simulation, and sample.
+
+``` {r sim-it-cell-sample}
+tau_sim <- 0.17
+phi_s2s_sim <- 0.2
+phi_ss_sim <- 0.18
+sigma_cell_sim <- 0.35
+
+set.seed(5618)
+dB_sim <- rnorm(n_eq, mean =0, sd = tau_sim)
+dS_sim <- rnorm(n_stat, mean =0, sd =phi_s2s_sim)
+dWS_sim <- rnorm(n_rec, mean = 0, sd = phi_ss_sim)
+dC_sim <- rnorm(n_cell, mean = 0, sd = sigma_cell_sim)
+
+data_reg$y_sim <- as.numeric(as.matrix(data_reg[,names_coeffs]) %*% coeffs + dm_sparse %*% dC_sim +
+  dB_sim[eq] + dS_sim[stat] + dWS_sim)
+```
+
+Now we fit the different models using Inla.
+
+```{r sim-cell-inla-fit}
+# full fit
+fit_sim_cell <- inla(y_sim ~ 0 + intercept + M1 + M2 + logR + MlogR + R + Fss + Frv + logVS +
+                       f(eq, model = "iid", hyper = prior_prec_tau) + 
+                       f(stat, model = "iid",hyper = prior_prec_phiS2S) +
+                       f(idx_cell, model = "z", Z = dm_sparse, hyper = prior_prec_cell),
+                     data = data_reg,
+                     family="gaussian",
+                     control.family = list(hyper = prior_prec_phiSS),
+                     quantiles = c(0.05,0.5,0.95)
+)
+
+fit_sim <- lmer(y_sim ~ M1 + M2 + logR + MlogR + R + Fss + Frv + logVS + (1|eq) + (1|stat), data_reg)
+data_reg$dWS_lmer <- data_reg$y_sim - predict(fit_sim)
+fit_sim_cell_dws <- inla(dWS_lmer ~ 0 + intercept +
+                            f(idx_cell, model = "z", Z = dm_sparse, hyper = prior_prec_cell),
+                          data = data_reg,
+                          family="gaussian",
+                          control.family = list(hyper = prior_prec_phiSS),
+                          quantiles = c(0.05,0.5,0.95)
+)
+
+# total residuals, but also take out linear R term
+data_reg$dR_lmer <- data_reg$y_sim - (predict(fit_sim,re.form=NA) -
+                           fixef(fit_sim)[6] * data_reg$R)
+
+fit_sim_cell_dR <- inla(dR_lmer ~ 0 + intercept + R +
+                          f(eq, model = "iid", hyper = prior_prec_tau) + 
+                          f(stat, model = "iid",hyper = prior_prec_phiS2S) +
+                          f(idx_cell, model = "z", Z = dm_sparse, hyper = prior_prec_cell),
+                        data = data_reg,
+                        family="gaussian",
+                        control.family = list(hyper = prior_prec_phiSS),
+                        quantiles = c(0.05,0.5,0.95)
+)
+```
+
+Ths shows the posterior distribution of the standard deviation of the cell-specific attenuation coefficients, which is understimated from $\delta WS$.
+
+``` {r sim-it-inla-results}
+rbind(data.frame(inla.tmarginal(function(x) sqrt(exp(-x)), 
+                                fit_sim_cell$internal.marginals.hyperpar$`Log precision for idx_cell`),
+                 mod = "full"),
+      data.frame(inla.tmarginal(function(x) sqrt(exp(-x)), 
+                                fit_sim_cell_dws$internal.marginals.hyperpar$`Log precision for idx_cell`),
+                 mod = "dWS"),
+      data.frame(inla.tmarginal(function(x) sqrt(exp(-x)), 
+                                fit_sim_cell_dR$internal.marginals.hyperpar$`Log precision for idx_cell`),
+                 mod = "dR")
+) %>%
+  ggplot() +
+  geom_line(aes(x = x, y = y, color = mod), linewidth = 1.5) +
+  geom_vline(xintercept = sigma_cell_sim, linewidth = 1.5) +
+  labs(x = 'sigma_cell', 'density') +
+  theme(legend.position = c(0.8,0.8)) +
+  guides(color = guide_legend(title = NULL))
+```
+
 
 # References
