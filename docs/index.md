@@ -1,12 +1,12 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "2023-09-14"
+date: "02 October, 2023"
 output:
   html_document:
     keep_md: true
     toc: true
-    toc_depth: 2
+    toc_depth: 3
     number_sections: true
     highlight: tango
 link-citations: yes
@@ -72,7 +72,7 @@ library(latex2exp)
 
 
 ```
-## CmdStan path set to: /Users/nico/GROUNDMOTION/SOFTWARE/cmdstan-2.32.2
+## CmdStan path set to: /Users/nico/GROUNDMOTION/SOFTWARE/cmdstan-2.33.1
 ```
 
 
@@ -92,7 +92,7 @@ breaks <- 10^(-10:10)
 minor_breaks <- rep(1:9, 21)*(10^rep(-10:10, each=9))
 ```
 
-# Simlations using CB14 Data
+# Simulations using CB14 Data
 
 Use Californian data from @Campbell2014.
 
@@ -268,10 +268,10 @@ These values are also close to the true ones, while the standard deviations calc
 The differences is largest for $\phi_{S2S}$, since there are several stations with only few recordings and thus large conditional standard deviations.
 Sampling from the conditional distrbution of the random effects/standard deviations leads to values that are close to the true ones.
 
-Since there are many stations with very few recordings, the value of $\phi_{S2S}$ is severel underestimated when calculated from the point estimates of the site terms.
-Thus, we now test whether what happesf we only use stations with at least 5 or 10 recordings.
-As we canseefrom the hstogram (which shows 200 repeated simulations), on average the values are closer to the true value, but some bias remains.
-If one chooses to go thsroute, one also has to account for the fact that the estimates are based on fewer stations.
+Since there are many stations with very few recordings, the value of $\phi_{S2S}$ is severly underestimated when calculated from the point estimates of the site terms.
+Thus, we now test whether what happens if we only use stations with at least 5 or 10 recordings.
+As we can see from the histogram (which shows 200 repeated simulations), on average the values are closer to the true value, but some bias remains.
+If one chooses to go this route, one also has to account for the fact that the estimates are based on fewer stations.
 
 
 ```r
@@ -307,7 +307,7 @@ In GMM development, the standard deviations are often modeled as dependent on so
 @Bayless2018 contains a magnitude-dependent $\phi_{S2S}$, which is modeled using the mean magnitude of all records by station.
 @Kotha2022 performed a Breusch-Pagan test [@Breusch1979] for heteroscedasticity to test for magnitude dependence of $\tau$ and $\phi_{SS}$.
 Below, we calcuale the p-values for the simulated data (which we know is not heterosceastic).
-The nul hypothesis is that the data is homscedastc, and a low p-value is the probability of observingdata if the null hypothesis were true.
+The null hypothesis is that the data is homoscedastc, and a low p-value is the probability of observing data if the null hypothesis were true.
 Based on point estimates, one would conclude that site terms and within-event/within-site residuals are heteroscedastic.
 In this context, be aware of hypothesis tests [@Wasserstein2019,@Amrhein2019].
 
@@ -358,7 +358,7 @@ $$
 $$
 with a form similar for $\phi_{SS}$.
 
-For this simulation, we also generate median predictions from fixed effects, in order to checkhow well the coefficients are estimated.
+For this simulation, we also generate median predictions from fixed effects, in order to check how well the coefficients are estimated.
 
 First, we declare the values of the standard deviations for the simulations.
 
@@ -386,7 +386,7 @@ phi_ss_sim <- m1_rec * phi_ss_sim_val[1] + m2_rec * phi_ss_sim_val[2]
 ```
 
 Now, we declare the coefficients, which are taken from the ITA18 model of @Lanzano2019.
-We alsocompute the linear predictors for the model.
+We also compute the linear predictors for the model.
 
 
 ```r
@@ -418,7 +418,7 @@ data_reg$y_sim <- as.matrix(data_reg[,names_coeffs]) %*% coeffs + dB_sim[eq] + d
 ```
 
 Firs, we perform a linear mixed effects regression (which assumes homoscedastic standard deviations).
-In general, thecoefficients are estimated well, but the standard deviations are off.
+In general, the coefficients are estimated well, but the standard deviations are off.
 
 
 ```r
@@ -487,7 +487,7 @@ Below, we compile the Stan model, and print out its code.
 
 
 ```r
-mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_tauM2_phiM2.stan'))
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_tauM_phiM.stan'))
 mod
 ```
 
@@ -506,14 +506,10 @@ mod
 ##   array[N] int<lower=1,upper=NEQ> eq; // event id (in numerical order from 1 to last)
 ##   array[N] int<lower=1,upper=NSTAT> stat; // station id (in numerical order from 1 to last)
 ## 
-##   vector[2] tau_mb;
-##   vector[2] phi_mb;
-## 
-## }
-## 
-## transformed data {
-##   vector[NEQ] M_tau = (MEQ - tau_mb[1]) / (tau_mb[2] - tau_mb[1]);
-##   vector[N] M_phi = (MEQ[eq] - phi_mb[1]) / (phi_mb[2] - phi_mb[1]);
+##   vector[NEQ] M1_eq;
+##   vector[NEQ] M2_eq;
+##   vector[N] M1_rec;
+##   vector[N] M2_rec;
 ## }
 ## 
 ## parameters {
@@ -543,21 +539,8 @@ mod
 ##   phi_ss_1 ~ normal(0,0.5); 
 ##   phi_ss_2 ~ normal(0,0.5);
 ## 
-##   vector[N] phi_ss;
-##   for(i in 1:N) {
-##     if(MEQ[eq[i]] <= phi_mb[1]) phi_ss[i] = phi_ss_1;
-##     else if(MEQ[eq[i]] >= phi_mb[2]) phi_ss[i] = phi_ss_2;
-##     else
-##       phi_ss[i] = phi_ss_1 + (phi_ss_2 - phi_ss_1) * M_phi[i];
-##   }
-## 
-##   vector[NEQ] tau;
-##   for(i in 1:NEQ) {
-##     if(MEQ[i] <= tau_mb[1]) tau[i] = tau_1;
-##     else if(MEQ[i] >= tau_mb[2]) tau[i] = tau_2;
-##     else
-##       tau[i] = tau_1 + (tau_2 - tau_1) * M_tau[i];
-##   }
+##   vector[N] phi_ss = M1_rec * phi_ss_1 + M2_rec * phi_ss_2;
+##   vector[NEQ] tau = M1_eq * tau_1 + M2_eq * tau_2;
 ## 
 ##   eqterm ~ normal(0, tau);
 ##   statterm ~ normal(0, phi_s2s);
@@ -567,7 +550,7 @@ mod
 ```
 
 Now, we declare the data for Stan, and run the model.
-To keep running time low,we only run 200 warm-up and 200sampling iterations.
+To keep running time low, we only run 200 warm-up and 200 sampling iterations.
 
 
 ```r
@@ -579,8 +562,10 @@ data_list <- list(
   eq = eq,
   stat = stat,
   MEQ = mageq,
-  tau_mb = mb_tau,
-  phi_mb = mb_phi
+  M1_eq = m1_eq,
+  M2_eq = m2_eq,
+  M1_rec = m1_rec,
+  M2_rec = m2_rec
 )
 
 fit <- mod$sample(
@@ -593,7 +578,7 @@ fit <- mod$sample(
   max_treedepth = 10,
   adapt_delta = 0.8,
   parallel_chains = 2,
-  show_messages = FALSE
+  show_exceptions = FALSE
 )
 ```
 
@@ -611,27 +596,27 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 111.1 seconds.
+## Chain 1 finished in 132.0 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 114.3 seconds.
+## Chain 2 finished in 139.2 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
-## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
-## Chain 4 Iteration: 200 / 400 [ 50%]  (Warmup) 
-## Chain 4 Iteration: 201 / 400 [ 50%]  (Sampling) 
+## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 200 / 400 [ 50%]  (Warmup) 
 ## Chain 3 Iteration: 201 / 400 [ 50%]  (Sampling) 
-## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
+## Chain 4 Iteration: 200 / 400 [ 50%]  (Warmup) 
+## Chain 4 Iteration: 201 / 400 [ 50%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
-## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 126.3 seconds.
+## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 130.5 seconds.
+## Chain 3 finished in 203.4 seconds.
+## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
+## Chain 4 finished in 201.9 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 120.6 seconds.
-## Total execution time: 242.0 seconds.
+## Mean chain execution time: 169.1 seconds.
+## Total execution time: 341.5 seconds.
 ```
 
 ```r
@@ -639,7 +624,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_partition_tauM2_phiM2-202309261529-1-0e553f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_partition_tauM2_phiM2-202309261529-2-0e553f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_partition_tauM2_phiM2-202309261529-3-0e553f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_partition_tauM2_phiM2-202309261529-4-0e553f.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_partition_tauM_phiM-202310021107-1-0da5d7.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_partition_tauM_phiM-202310021107-2-0da5d7.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_partition_tauM_phiM-202310021107-3-0da5d7.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_partition_tauM_phiM-202310021107-4-0da5d7.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -659,7 +644,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_partition_tauM2_phiM2-202309261529-1-0e553f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_partition_tauM2_phiM2-202309261529-2-0e553f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_partition_tauM2_phiM2-202309261529-3-0e553f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_partition_tauM2_phiM2-202309261529-4-0e553f.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_partition_tauM_phiM-202310021107-1-0da5d7.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_partition_tauM_phiM-202310021107-2-0da5d7.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_partition_tauM_phiM-202310021107-3-0da5d7.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_partition_tauM_phiM-202310021107-4-0da5d7.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -680,7 +665,7 @@ print(fit$diagnostic_summary())
 ## [1] 0 0 0 0
 ## 
 ## $ebfmi
-## [1] 0.8081726 0.8814360 0.8563872 1.0001283
+## [1] 0.7268607 0.9408649 0.7289387 1.1460655
 ```
 
 ```r
@@ -691,14 +676,14 @@ summarise_draws(subset(draws_part, variable = c('ic','phi','tau'), regex = TRUE)
 
 ```
 ## # A tibble: 6 × 10
-##   variable      mean    median      sd     mad      q5    q95  rhat ess_bulk
-##   <chr>        <num>     <num>   <num>   <num>   <num>  <num> <num>    <num>
-## 1 ic       -0.000684 -0.000298 0.0266  0.0272  -0.0442 0.0426 1.02      86.7
-## 2 phi_ss_1  0.550     0.550    0.00402 0.00408  0.544  0.557  1.01    1014. 
-## 3 phi_ss_2  0.395     0.395    0.00837 0.00839  0.382  0.409  1.01     688. 
-## 4 phi_s2s   0.433     0.433    0.0110  0.0117   0.416  0.451  1.00     494. 
-## 5 tau_1     0.391     0.390    0.0191  0.0197   0.361  0.424  0.998   1397. 
-## 6 tau_2     0.319     0.315    0.0563  0.0548   0.238  0.420  1.00     727. 
+##   variable     mean   median      sd     mad      q5    q95  rhat ess_bulk
+##   <chr>       <num>    <num>   <num>   <num>   <num>  <num> <num>    <num>
+## 1 ic       -0.00596 -0.00479 0.0260  0.0266  -0.0484 0.0370 1.02      91.2
+## 2 phi_ss_1  0.550    0.550   0.00418 0.00399  0.543  0.557  1.00     812. 
+## 3 phi_ss_2  0.395    0.395   0.00831 0.00839  0.381  0.409  1.00     893. 
+## 4 phi_s2s   0.431    0.431   0.0109  0.0115   0.414  0.450  1.00     594. 
+## 5 tau_1     0.391    0.390   0.0202  0.0187   0.357  0.426  0.999   1775. 
+## 6 tau_2     0.319    0.314   0.0520  0.0507   0.240  0.412  1.00     912. 
 ## # ℹ 1 more variable: ess_tail <num>
 ```
 In general, the parameters are well estimated.
@@ -709,7 +694,7 @@ To improve sampling, we use the QR-decomposition of the desgn matrix.
 
 
 ```r
-mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_full_qr_tauM2_phiM2.stan'))
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_full_qr_tauM_phiM.stan'))
 mod
 ```
 
@@ -730,20 +715,16 @@ mod
 ##   array[N] int<lower=1,upper=NEQ> eq; // event id (in numerical order from 1 to last)
 ##   array[N] int<lower=1,upper=NSTAT> stat; // station id (in numerical order from 1 to last)
 ## 
-##   vector[2] tau_mb;
-##   vector[2] phi_mb;
-## 
+##   vector[NEQ] M1_eq;
+##   vector[NEQ] M2_eq;
+##   vector[N] M1_rec;
+##   vector[N] M2_rec;
 ## }
 ## 
 ## transformed data {
-## 
 ##   matrix[N, K-1] Q_ast = qr_thin_Q(X) * sqrt(N - 1);
 ##   matrix[K-1, K-1] R_ast = qr_thin_R(X) / sqrt(N - 1);
 ##   matrix[K-1, K-1] R_ast_inverse = inverse(R_ast);
-## 
-##   vector[NEQ] M_tau = (MEQ - tau_mb[1]) / (tau_mb[2] - tau_mb[1]);
-##   vector[N] M_phi = (MEQ[eq] - phi_mb[1]) / (phi_mb[2] - phi_mb[1]);
-## 
 ## }
 ## 
 ## parameters {
@@ -774,21 +755,8 @@ mod
 ##   phi_ss_1 ~ normal(0,0.5); 
 ##   phi_ss_2 ~ normal(0,0.5);
 ## 
-##   vector[N] phi_ss;
-##   for(i in 1:N) {
-##     if(MEQ[eq[i]] <= phi_mb[1]) phi_ss[i] = phi_ss_1;
-##     else if(MEQ[eq[i]] >= phi_mb[2]) phi_ss[i] = phi_ss_2;
-##     else
-##       phi_ss[i] = phi_ss_1 + (phi_ss_2 - phi_ss_1) * M_phi[i];
-##   }
-## 
-##   vector[NEQ] tau;
-##   for(i in 1:NEQ) {
-##     if(MEQ[i] <= tau_mb[1]) tau[i] = tau_1;
-##     else if(MEQ[i] >= tau_mb[2]) tau[i] = tau_2;
-##     else
-##       tau[i] = tau_1 + (tau_2 - tau_1) * M_tau[i];
-##   }
+##   vector[N] phi_ss = M1_rec * phi_ss_1 + M2_rec * phi_ss_2;
+##   vector[NEQ] tau = M1_eq * tau_1 + M2_eq * tau_2;
 ## 
 ##   eqterm ~ normal(0, tau);
 ##   statterm ~ normal(0, phi_s2s);
@@ -815,8 +783,10 @@ data_list <- list(
   eq = eq,
   stat = stat,
   MEQ = mageq,
-  tau_mb = mb_tau,
-  phi_mb = mb_phi
+  M1_eq = m1_eq,
+  M2_eq = m2_eq,
+  M1_rec = m1_rec,
+  M2_rec = m2_rec
 )
 
 fit <- mod$sample(
@@ -829,28 +799,28 @@ fit <- mod$sample(
   max_treedepth = 10,
   adapt_delta = 0.8,
   parallel_chains = 2,
-  show_messages = FALSE
+  show_exceptions = FALSE
 )
 ```
 
 ```
 ## Running MCMC with 4 chains, at most 2 in parallel...
 ## 
-## Chain 2 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 1 Iteration:   1 / 400 [  0%]  (Warmup) 
+## Chain 2 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 1 Iteration: 100 / 400 [ 25%]  (Warmup) 
-## Chain 1 Iteration: 200 / 400 [ 50%]  (Warmup) 
-## Chain 1 Iteration: 201 / 400 [ 50%]  (Sampling) 
 ## Chain 2 Iteration: 200 / 400 [ 50%]  (Warmup) 
 ## Chain 2 Iteration: 201 / 400 [ 50%]  (Sampling) 
-## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
+## Chain 1 Iteration: 200 / 400 [ 50%]  (Warmup) 
+## Chain 1 Iteration: 201 / 400 [ 50%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
-## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 320.4 seconds.
-## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
+## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 364.1 seconds.
+## Chain 2 finished in 316.5 seconds.
+## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
+## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
+## Chain 1 finished in 327.2 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -861,13 +831,13 @@ fit <- mod$sample(
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 357.3 seconds.
+## Chain 3 finished in 329.1 seconds.
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 369.0 seconds.
+## Chain 4 finished in 327.4 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 352.7 seconds.
-## Total execution time: 733.8 seconds.
+## Mean chain execution time: 325.0 seconds.
+## Total execution time: 655.1 seconds.
 ```
 
 ```r
@@ -875,7 +845,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_full_qr_tauM2_phiM2-202309261534-1-04a623.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_full_qr_tauM2_phiM2-202309261534-2-04a623.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_full_qr_tauM2_phiM2-202309261534-3-04a623.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_full_qr_tauM2_phiM2-202309261534-4-04a623.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_full_qr_tauM_phiM-202310021113-1-03f6bb.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_full_qr_tauM_phiM-202310021113-2-03f6bb.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_full_qr_tauM_phiM-202310021113-3-03f6bb.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_full_qr_tauM_phiM-202310021113-4-03f6bb.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -895,7 +865,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_full_qr_tauM2_phiM2-202309261534-1-04a623.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_full_qr_tauM2_phiM2-202309261534-2-04a623.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_full_qr_tauM2_phiM2-202309261534-3-04a623.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpfkuOtN/gmm_full_qr_tauM2_phiM2-202309261534-4-04a623.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_full_qr_tauM_phiM-202310021113-1-03f6bb.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_full_qr_tauM_phiM-202310021113-2-03f6bb.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_full_qr_tauM_phiM-202310021113-3-03f6bb.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpmoLBg2/gmm_full_qr_tauM_phiM-202310021113-4-03f6bb.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -916,7 +886,7 @@ print(fit$diagnostic_summary())
 ## [1] 0 0 0 0
 ## 
 ## $ebfmi
-## [1] 0.7742797 0.8354595 0.8414977 0.9012932
+## [1] 0.8592778 1.0110550 0.7789643 0.8587937
 ```
 
 ```r
@@ -929,11 +899,11 @@ summarise_draws(subset(draws_full, variable = c('phi','tau'), regex = TRUE))
 ## # A tibble: 5 × 10
 ##   variable  mean median      sd     mad    q5   q95  rhat ess_bulk ess_tail
 ##   <chr>    <num>  <num>   <num>   <num> <num> <num> <num>    <num>    <num>
-## 1 phi_ss_1 0.550  0.550 0.00411 0.00426 0.544 0.557  1.01     942.     466.
-## 2 phi_ss_2 0.396  0.396 0.00805 0.00785 0.382 0.409  1.00     899.     731.
-## 3 phi_s2s  0.433  0.433 0.0108  0.0110  0.414 0.449  1.00     633.     722.
-## 4 tau_1    0.392  0.390 0.0205  0.0207  0.359 0.428  1.01    1156.     675.
-## 5 tau_2    0.317  0.310 0.0563  0.0552  0.237 0.422  1.01     693.     621.
+## 1 phi_ss_1 0.550  0.550 0.00393 0.00397 0.544 0.557 1.01      957.     607.
+## 2 phi_ss_2 0.395  0.395 0.00860 0.00822 0.380 0.409 1.00      661.     800.
+## 3 phi_s2s  0.433  0.432 0.0110  0.0114  0.415 0.451 1.01      609.     674.
+## 4 tau_1    0.392  0.391 0.0206  0.0192  0.358 0.430 0.999    1622.     600.
+## 5 tau_2    0.322  0.314 0.0628  0.0582  0.235 0.436 1.01      601.     803.
 ```
 
 ```r
@@ -944,13 +914,13 @@ summarise_draws(subset(draws_full, variable = c('^c\\['), regex = TRUE))
 ## # A tibble: 7 × 10
 ##   variable     mean   median       sd      mad       q5      q95  rhat ess_bulk
 ##   <chr>       <num>    <num>    <num>    <num>    <num>    <num> <num>    <num>
-## 1 c[1]      3.59     3.59    0.0957   0.0896    3.43     3.74    1.02      65.5
-## 2 c[2]      0.268    0.267   0.0537   0.0512    0.177    0.354   1.03      89.1
-## 3 c[3]     -0.0581  -0.0588  0.0828   0.0845   -0.195    0.0752  1.03     115. 
-## 4 c[4]      0.268    0.267   0.0157   0.0156    0.241    0.294   0.998    729. 
-## 5 c[5]     -1.42    -1.42    0.0364   0.0376   -1.48    -1.36    0.998    496. 
-## 6 c[6]     -0.00295 -0.00296 0.000158 0.000150 -0.00320 -0.00268 1.00     765. 
-## 7 c[7]     -0.337   -0.338   0.0910   0.0914   -0.483   -0.181   1.02      97.4
+## 1 c[1]      3.60     3.60    0.0986   0.0947    3.44     3.77     1.04     112.
+## 2 c[2]      0.274    0.274   0.0521   0.0511    0.188    0.357    1.04     119.
+## 3 c[3]     -0.0621  -0.0610  0.0885   0.0820   -0.206    0.0789   1.03     179.
+## 4 c[4]      0.268    0.268   0.0156   0.0157    0.241    0.292    1.00    1239.
+## 5 c[5]     -1.42    -1.42    0.0377   0.0399   -1.47    -1.36     1.01     734.
+## 6 c[6]     -0.00295 -0.00295 0.000166 0.000171 -0.00323 -0.00268  1.01     998.
+## 7 c[7]     -0.336   -0.333   0.0886   0.0880   -0.489   -0.192    1.01     209.
 ## # ℹ 1 more variable: ess_tail <num>
 ```
 
@@ -1065,10 +1035,10 @@ data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_s2s', regex 
 
 <img src="pictures/sim2-hs-plot-phis2s-1.png" width="50%" />
 
-We can conclude from this smulation (and the repeated ones in the paper) that to the magnitude-dependent standard deviations can be estimated using Stan from total residuals, but one should also account for uncertainty.
-Estimating the values from binned random effects/resduals can work but leads to a larger bias.
+We can conclude from this smulation (and the repeated ones in the paper) that the magnitude-dependent standard deviations can be estimated using Stan from total residuals, but one should also account for uncertainty.
+Estimating the values from binned random effects/residuals can work but leads to a larger bias.
 
-Our focus is on estmating the magnitude-dependent standard deviations, but as a check we also plot the posterior distrbutions of the coefficients for the full stan model, together with the true values (black) and `lmer` estimates.
+Our focus is on estimating the magnitude-dependent standard deviations, but as a check we also plot the posterior distrbutions of the coefficients for the full stan model, together with the true values (black) and `lmer` estimates (red).
 
 
 ```r
@@ -1086,10 +1056,318 @@ mcmc_hist(draws_full,regex_pars = 'c\\[') +
 
 <img src="pictures/sim2-hs-coeffs-1.png" width="100%" />
 
-## Scaling from Point Estimates of Random Effects
+### Estimating Break Points
+
+In the previous section, we have simulated data with magnitude-dependent $\tau$ and $\phi$, using a trilnear function for the magnitude dependence.
+In the Stan code, we have used the same fuctional form, and assumed that the magnitude break points are known.
+Here, we relax this assumption.
+We cannot directly estimate the break points since the Hamiltonian Monte Carlo algorithm of Stan relies on differentiation the model with respect to the parameters (loosely speaking), which leads to problems for functions with sharp beaks.
+Instead, we model the dependence using the ``logistic sigmoid'' function (called `inv_logit` in Stan), which is defined as
+$$
+\sigma(x) = \frac{1}{1 + \exp(-x)}
+$$
+Below, we run a Stan model where both $\phi_{SS}$ and $\tau$ are modeled using this function.
+
+```r
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_tauM_phiM_invlogit.stan'))
+mod
+```
+
+```
+## /*********************************************
+##  ********************************************/
+## 
+## data {
+##   int N;  // number of records
+##   int NEQ;  // number of earthquakes
+##   int NSTAT;  // number of stations
+## 
+##   vector[NEQ] MEQ;
+##   vector[N] Y; // ln ground-motion value
+## 
+##   array[N] int<lower=1,upper=NEQ> eq; // event id (in numerical order from 1 to last)
+##   array[N] int<lower=1,upper=NSTAT> stat; // station id (in numerical order from 1 to last)
+## 
+## }
+## 
+## parameters {
+##   real ic;
+##   
+##   real<lower=0> tau_1;
+##   real<upper=tau_1> tau_2;
+##   real<lower=0> tau_scale;
+##   real<lower=4> mb_tau;
+## 
+##   real<lower=0> phi_ss_1;
+##   real<upper=phi_ss_1> phi_ss_2;
+##   real<lower=0> phi_ss_scale;
+##   real<lower=4> mb_phi_ss;
+## 
+##   real<lower=0> phi_s2s;
+## 
+##   vector[NEQ] eqterm;
+##   vector[NSTAT] statterm;
+## }
+## 
+## transformed parameters {
+## }
+## 
+## 
+## model {
+##   ic ~ normal(0,0.1);
+## 
+##   phi_s2s ~ normal(0,0.5); 
+## 
+##   tau_1 ~ normal(0,0.5); 
+##   tau_2 ~ normal(0,0.5);
+##   mb_tau ~ normal(5.,1);
+##   tau_scale ~ normal(6,1);
+## 
+##   phi_ss_1 ~ normal(0,0.5); 
+##   phi_ss_2 ~ normal(0,0.5);
+##   mb_phi_ss ~ normal(5.,1);
+##   phi_ss_scale ~ normal(6,1);
+## 
+##   vector[NEQ] tau = tau_1 - tau_2 * inv_logit(tau_scale * (MEQ - mb_tau));
+##   vector[N] phi_ss = phi_ss_1 - phi_ss_2 * inv_logit(phi_ss_scale * (MEQ[eq] - mb_phi_ss));
+## 
+##   eqterm ~ normal(0, tau);
+##   statterm ~ normal(0, phi_s2s);
+## 
+##   Y ~ normal(ic + eqterm[eq] + statterm[stat], phi_ss);
+## 
+## }
+```
+
+```r
+data_list <- list(
+  N = n_rec,
+  NEQ = n_eq,
+  NSTAT = n_stat,
+  Y = as.numeric(dR_lmer),
+  eq = eq,
+  stat = stat,
+  MEQ = mageq
+)
+
+fit <- mod$sample(
+  data = data_list,
+  seed = 8472,
+  chains = 4,
+  iter_sampling = 200,
+  iter_warmup = 200,
+  refresh = 100,
+  max_treedepth = 10,
+  adapt_delta = 0.8, # increase to avoid divergences
+  parallel_chains = 2,
+  show_exceptions = FALSE
+)
+```
+
+```
+## Running MCMC with 4 chains, at most 2 in parallel...
+## 
+## Chain 1 Iteration:   1 / 400 [  0%]  (Warmup) 
+## Chain 2 Iteration:   1 / 400 [  0%]  (Warmup) 
+## Chain 1 Iteration: 100 / 400 [ 25%]  (Warmup) 
+## Chain 2 Iteration: 100 / 400 [ 25%]  (Warmup) 
+## Chain 1 Iteration: 200 / 400 [ 50%]  (Warmup) 
+## Chain 1 Iteration: 201 / 400 [ 50%]  (Sampling) 
+## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
+## Chain 2 Iteration: 200 / 400 [ 50%]  (Warmup) 
+## Chain 2 Iteration: 201 / 400 [ 50%]  (Sampling) 
+## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
+## Chain 1 finished in 209.0 seconds.
+## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
+## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
+## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
+## Chain 2 finished in 225.2 seconds.
+## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
+## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
+## Chain 3 Iteration: 200 / 400 [ 50%]  (Warmup) 
+## Chain 3 Iteration: 201 / 400 [ 50%]  (Sampling) 
+## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
+## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
+## Chain 4 Iteration: 200 / 400 [ 50%]  (Warmup) 
+## Chain 4 Iteration: 201 / 400 [ 50%]  (Sampling) 
+## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
+## Chain 3 finished in 135.4 seconds.
+## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
+## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
+## Chain 4 finished in 133.0 seconds.
+## 
+## All 4 chains finished successfully.
+## Mean chain execution time: 175.7 seconds.
+## Total execution time: 359.3 seconds.
+```
+
+```r
+print(fit$cmdstan_diagnose())
+```
+
+```
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpY2WJGx/gmm_partition_tauM_phiM_invlogit-202310021433-1-967859.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpY2WJGx/gmm_partition_tauM_phiM_invlogit-202310021433-2-967859.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpY2WJGx/gmm_partition_tauM_phiM_invlogit-202310021433-3-967859.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpY2WJGx/gmm_partition_tauM_phiM_invlogit-202310021433-4-967859.csv
+## 
+## Checking sampler transitions treedepth.
+## Treedepth satisfactory for all transitions.
+## 
+## Checking sampler transitions for divergences.
+## No divergent transitions found.
+## 
+## Checking E-BFMI - sampler transitions HMC potential energy.
+## E-BFMI satisfactory.
+## 
+## Effective sample size satisfactory.
+## 
+## The following parameters had split R-hat greater than 1.05:
+##   ic, eqterm[47], eqterm[54], eqterm[90], eqterm[104], eqterm[143], eqterm[165]
+## Such high values indicate incomplete mixing and biased estimation.
+## You should consider regularizating your model with additional prior information or a more effective parameterization.
+## 
+## Processing complete.
+## $status
+## [1] 0
+## 
+## $stdout
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpY2WJGx/gmm_partition_tauM_phiM_invlogit-202310021433-1-967859.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpY2WJGx/gmm_partition_tauM_phiM_invlogit-202310021433-2-967859.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpY2WJGx/gmm_partition_tauM_phiM_invlogit-202310021433-3-967859.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpY2WJGx/gmm_partition_tauM_phiM_invlogit-202310021433-4-967859.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nThe following parameters had split R-hat greater than 1.05:\n  ic, eqterm[47], eqterm[54], eqterm[90], eqterm[104], eqterm[143], eqterm[165]\nSuch high values indicate incomplete mixing and biased estimation.\nYou should consider regularizating your model with additional prior information or a more effective parameterization.\n\nProcessing complete.\n"
+## 
+## $stderr
+## [1] ""
+## 
+## $timeout
+## [1] FALSE
+```
+
+```r
+print(fit$diagnostic_summary())
+```
+
+```
+## $num_divergent
+## [1] 0 0 0 0
+## 
+## $num_max_treedepth
+## [1] 0 0 0 0
+## 
+## $ebfmi
+## [1] 0.8298975 0.9716006 0.8808843 1.0236464
+```
+
+```r
+draws_part2 <- fit$draws()
+
+summarise_draws(subset(draws_part2, variable = c('ic','phi','tau'), regex = TRUE))
+```
+
+```
+## # A tibble: 10 × 10
+##    variable         mean   median      sd     mad      q5    q95  rhat ess_bulk
+##    <chr>           <num>    <num>   <num>   <num>   <num>  <num> <num>    <num>
+##  1 ic           -0.00338 -0.00238 0.0298  0.0306  -0.0542 0.0409 1.11      30.9
+##  2 phi_ss_1      0.551    0.551   0.00473 0.00443  0.543  0.559  1.00    1191. 
+##  3 phi_ss_2      0.152    0.152   0.00982 0.00968  0.136  0.168  1.01     692. 
+##  4 phi_ss_scale  6.40     6.39    0.873   0.850    5.01   7.88   1.01    1034. 
+##  5 mb_phi_ss     4.96     4.96    0.0595  0.0605   4.87   5.06   1.00     807. 
+##  6 phi_s2s       0.431    0.431   0.0117  0.0118   0.413  0.451  0.997    500. 
+##  7 tau_1         0.391    0.390   0.0210  0.0217   0.360  0.426  1.00    1481. 
+##  8 tau_2         0.0679   0.0630  0.0791  0.0692  -0.0578 0.212  1.01     407. 
+##  9 tau_scale     5.94     5.95    0.988   0.963    4.35   7.57   1.00     925. 
+## 10 mb_tau        5.66     5.57    0.810   0.838    4.42   7.03   1.00     449. 
+## # ℹ 1 more variable: ess_tail <num>
+```
+We get some warnings about incomplete mixing, which we will ignore here.
+We ranonly 400 iterations in total, and some longer chains probably lead to R-hat values that are closer to 1.
+
+
+We now plot the magnitude dependence of $\tau$ and $\phi_{SS}$, estimated using the correct functional form and the logistic sigmoid function.
+For $\tau$, the end values are similiar, but the transition is not well estimated with the logistic sigmoid function.
+Ths s due to the fact that there are not many events in total (and not many at large magnitudes), which makes the estimation difficult.
+For $\phi_{SS}$, on the other hand, the two estimated functions agree quite well.
+
+
+```r
+# function to calculate lnear predictos for magnitude scaling with break points
+func_sd_mag <- function(mag, mb) {
+  m1 <- 1 * (mag < mb[2]) - (mag - mb[1]) / (mb[2] - mb[1]) * (mag > mb[1] & mag < mb[2])
+  m2 <- 1 * (mag >= mb[2]) + (mag - mb[1]) / (mb[2] - mb[1]) * (mag > mb[1] & mag < mb[2])
+  
+  return(list(m1 = m1, m2 = m2))
+  
+}
+
+# logistic sigmoid function
+logsig <- function(x) {1/(1 + exp(-x))}
+
+# magnitudes for plotting
+mags_f <- seq(3,8,by=0.1)
+mags <- func_sd_mag(mags_f, mb_tau)
+tau_m <- as_draws_matrix(subset(draws_part, variable = 'tau_1')) %*% matrix(mags$m1, nrow = 1) +
+  as_draws_matrix(subset(draws_part, variable = 'tau_2')) %*% matrix(mags$m2, nrow = 1)
+
+# posterior distribution of tau values for different magnitudes
+tau_m_sig <- sapply(mags_f,
+                    function(m) {as_draws_matrix(subset(draws_part2, variable = 'tau_1')) - 
+                        as_draws_matrix(subset(draws_part2, variable = 'tau_2')) *
+                        logsig((m - as_draws_matrix(subset(draws_part2, variable = 'mb_tau'))) *
+                                 as_draws_matrix(subset(draws_part2, variable = 'tau_scale')))})
+
+
+p1 <- data.frame(M = mags_f, 
+           mean_true = tau_sim_val[1] * mags$m1 + tau_sim_val[2] * mags$m2,
+           mean_mod1 = colMeans(tau_m),
+           q05_mod1 = colQuantiles(tau_m, probs = 0.05),
+           q95_mod1 = colQuantiles(tau_m, probs = 0.95),
+           mean_mod2 = colMeans(tau_m_sig),
+           q05_mod2 = colQuantiles(tau_m_sig, probs = 0.05),
+           q95_mod2 = colQuantiles(tau_m_sig, probs = 0.95)) |>
+  pivot_longer(!M, names_sep = '_', names_to = c('par','mod')) |>
+  ggplot() +
+  geom_line(aes(x = M, y=value, color = mod, linetype = par), linewidth = 1.5) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.2,0.3)) +
+  scale_color_manual(values = c('red','blue','black'),
+                     labels = c('tri-linear','logistic sigmoid','true')) +
+  labs(x = 'M', y = 'tau')
+
+############ phi
+mags <- func_sd_mag(mags_f, mb_phi)
+phi_m <- as_draws_matrix(subset(draws_part, variable = 'phi_ss_1')) %*% matrix(mags$m1, nrow = 1) +
+  as_draws_matrix(subset(draws_part, variable = 'phi_ss_2')) %*% matrix(mags$m2, nrow = 1)
+
+# posterior distribution of tau values for different magnitudes
+phi_m_sig <- sapply(mags_f,
+                    function(m) {as_draws_matrix(subset(draws_part2, variable = 'phi_ss_1')) - 
+                        as_draws_matrix(subset(draws_part2, variable = 'phi_ss_2')) *
+                        logsig((m - as_draws_matrix(subset(draws_part2, variable = 'mb_phi_ss'))) *
+                                 as_draws_matrix(subset(draws_part2, variable = 'phi_ss_scale')))})
+
+
+p2 <- data.frame(M = mags_f, 
+           mean_true = phi_ss_sim_val[1] * mags$m1 + phi_ss_sim_val[2] * mags$m2,
+           mean_mod1 = colMeans(phi_m),
+           q05_mod1 = colQuantiles(phi_m, probs = 0.05),
+           q95_mod1 = colQuantiles(phi_m, probs = 0.95),
+           mean_mod2 = colMeans(phi_m_sig),
+           q05_mod2 = colQuantiles(phi_m_sig, probs = 0.05),
+           q95_mod2 = colQuantiles(phi_m_sig, probs = 0.95)) |>
+  pivot_longer(!M, names_sep = '_', names_to = c('par','mod')) |>
+  ggplot() +
+  geom_line(aes(x = M, y=value, color = mod, linetype = par), linewidth = 1.5) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.2,0.3)) +
+  scale_color_manual(values = c('red','blue','black'),
+                     labels = c('tri-linear','logistic sigmoid','true')) +
+  labs(x = 'M', y = 'phi_SS')
+
+patchwork::wrap_plots(p1, p2)
+```
+
+<img src="pictures/sim2-hs-logsig-results-1.png" width="100%" />
+
+## Estimating Scaling from Point Estimates of Random Effects
 
 Random effects are sometimes used to estimate scaling of ground motions wth respect to new parameters, such as parameters associated with horizontal-to-vertical ratios.
-To assess poential biases, we simulate synthetic data using the ITA18 functional form, and then estimate a model without $V_{S30}$-scaling.
+To assess potential biases, we simulate synthetic data using the ITA18 functional form, and then estimate a model without $V_{S30}$-scaling.
 We then estimate the $V_{S30}$-scaling coefficient from site terms.
 
 The coefficients and linear predictors are already set.
@@ -1339,7 +1617,7 @@ fit <- mod$sample(
   max_treedepth = 10,
   adapt_delta = 0.8,
   parallel_chains = 2,
-  show_messages = FALSE
+  show_exceptions = FALSE
 )
 ```
 
@@ -1357,10 +1635,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 35.7 seconds.
+## Chain 1 finished in 38.2 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 36.1 seconds.
+## Chain 2 finished in 39.2 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -1371,13 +1649,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 49.1 seconds.
+## Chain 4 finished in 64.6 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 54.0 seconds.
+## Chain 3 finished in 67.8 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 43.7 seconds.
-## Total execution time: 90.0 seconds.
+## Mean chain execution time: 52.4 seconds.
+## Total execution time: 106.2 seconds.
 ```
 
 ```r
@@ -1385,7 +1663,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpphFq1o/gmm_partition_wvar_corr-202309280946-1-810a48.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpphFq1o/gmm_partition_wvar_corr-202309280946-2-810a48.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpphFq1o/gmm_partition_wvar_corr-202309280946-3-810a48.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpphFq1o/gmm_partition_wvar_corr-202309280946-4-810a48.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-1-8181c8.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-2-8181c8.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-3-8181c8.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-4-8181c8.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -1405,7 +1683,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpphFq1o/gmm_partition_wvar_corr-202309280946-1-810a48.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpphFq1o/gmm_partition_wvar_corr-202309280946-2-810a48.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpphFq1o/gmm_partition_wvar_corr-202309280946-3-810a48.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpphFq1o/gmm_partition_wvar_corr-202309280946-4-810a48.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-1-8181c8.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-2-8181c8.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-3-8181c8.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-4-8181c8.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -1540,8 +1818,8 @@ prior_prec_phiSS    <- list(prec = list(prior = 'pc.prec', param = c(0.3, 0.01))
 ## Spatial correlations of Site Terms
 
 In nonergodic models, site terms are often modeled as spatially correlated.
-The spatial correlaion structure can be assess from point estimates of the site terms.
-Here, we simulate some data with spatally correlated site terms, to check whether we can get the model parameters back.
+The spatial correlaion structure can be assessed from point estimates of the site terms.
+Here, we simulate some data with spatially correlated site terms, to check whether we can get the model parameters back.
 
 We use the Mat\'ern covariance function for the spatial correlation of the site terms, which is defined below.
 
@@ -1654,7 +1932,7 @@ form_spatial_stat_u <- y ~ 0 + intercept + f(idx_stat, model = spde_stat)
 ```
 
 
-Now, we sample the event terms, ste terms, spatially corrlated site terms, and within-event/within-site residuals, and combine them with the median predictions from ITA18.
+Now, we sample the event terms, site terms, spatially correlated site terms, and within-event/within-site residuals, and combine them with the median predictions from ITA18.
 We then fit a `lmer` model to the data.
 
 
@@ -1673,7 +1951,7 @@ dS_lmer <- ranef(fit_sim)$stat$`(Intercept)`
 ```
 
 Now, we fit the Inla models.
-We fit the full model (fixed and random effects), a model onthe total residuals, and a model on the site terms from the `lmer` fit.
+We fit the full model (fixed and random effects), a model on the total residuals, and a model on the site terms from the `lmer` fit.
 
 
 ```r
@@ -1794,12 +2072,12 @@ patchwork::wrap_plots(p1, p2)
 <img src="pictures/sim-it-spatial-results-1.png" width="100%" />
 
 We can see that the spatial range is quite well estimated for all approaches, and that the full model and the model based on total residuals give almost the same results.
-The model based on site terms does not lead to good results for the standard deviations, n particular for $\phi_{S2S,c}$, which is severely underestimated.
-The relative sizes ofstandard devations based on the fit from $\delta S$ are wrongly estimated.
+The model based on site terms does not lead to good results for the standard deviations, in particular for $\phi_{S2S,c}$, which is severely underestimated.
+The relative sizes of standard devations based on the fit from $\delta S$ are wrongly estimated.
 
 ## Cell-specific atteuation
 
-In this section, we simulate data based on the cell-specific attenuation model [@Kuehn2019,@Dawood2013], and estima the model parameters using the total model, aswell as from within-event/within-site residuals.
+In this section, we simulate data based on the cell-specific attenuation model [@Kuehn2019,@Dawood2013], and estimate the model parameters using the total model, as well as from within-event/within-site residuals.
 
 Read in the cell-specific distances, and some definitions.
 

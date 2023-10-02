@@ -1,12 +1,12 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "2023-09-14"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:
     keep_md: true
     toc: true
-    toc_depth: 2
+    toc_depth: 3
     number_sections: true
     highlight: tango
 link-citations: yes
@@ -74,7 +74,7 @@ library(latex2exp)
 ```
 
 ```{r cmdstan-path, echo=FALSE}
-set_cmdstan_path('/Users/nico/GROUNDMOTION/SOFTWARE/cmdstan-2.32.2')
+set_cmdstan_path('/Users/nico/GROUNDMOTION/SOFTWARE/cmdstan-2.33.1')
 ```
 
 ``` {r plot-options}
@@ -93,7 +93,7 @@ breaks <- 10^(-10:10)
 minor_breaks <- rep(1:9, 21)*(10^rep(-10:10, each=9))
 ```
 
-# Simlations using CB14 Data
+# Simulations using CB14 Data
 
 Use Californian data from @Campbell2014.
 
@@ -209,10 +209,10 @@ These values are also close to the true ones, while the standard deviations calc
 The differences is largest for $\phi_{S2S}$, since there are several stations with only few recordings and thus large conditional standard deviations.
 Sampling from the conditional distrbution of the random effects/standard deviations leads to values that are close to the true ones.
 
-Since there are many stations with very few recordings, the value of $\phi_{S2S}$ is severel underestimated when calculated from the point estimates of the site terms.
-Thus, we now test whether what happesf we only use stations with at least 5 or 10 recordings.
-As we canseefrom the hstogram (which shows 200 repeated simulations), on average the values are closer to the true value, but some bias remains.
-If one chooses to go thsroute, one also has to account for the fact that the estimates are based on fewer stations.
+Since there are many stations with very few recordings, the value of $\phi_{S2S}$ is severly underestimated when calculated from the point estimates of the site terms.
+Thus, we now test whether what happens if we only use stations with at least 5 or 10 recordings.
+As we can see from the histogram (which shows 200 repeated simulations), on average the values are closer to the true value, but some bias remains.
+If one chooses to go this route, one also has to account for the fact that the estimates are based on fewer stations.
 
 ``` {r sim1-phis2s, cache=TRUE}
 n_sam <- 200
@@ -245,7 +245,7 @@ In GMM development, the standard deviations are often modeled as dependent on so
 @Bayless2018 contains a magnitude-dependent $\phi_{S2S}$, which is modeled using the mean magnitude of all records by station.
 @Kotha2022 performed a Breusch-Pagan test [@Breusch1979] for heteroscedasticity to test for magnitude dependence of $\tau$ and $\phi_{SS}$.
 Below, we calcuale the p-values for the simulated data (which we know is not heterosceastic).
-The nul hypothesis is that the data is homscedastc, and a low p-value is the probability of observingdata if the null hypothesis were true.
+The null hypothesis is that the data is homoscedastc, and a low p-value is the probability of observing data if the null hypothesis were true.
 Based on point estimates, one would conclude that site terms and within-event/within-site residuals are heteroscedastic.
 In this context, be aware of hypothesis tests [@Wasserstein2019,@Amrhein2019].
 
@@ -285,7 +285,7 @@ $$
 $$
 with a form similar for $\phi_{SS}$.
 
-For this simulation, we also generate median predictions from fixed effects, in order to checkhow well the coefficients are estimated.
+For this simulation, we also generate median predictions from fixed effects, in order to check how well the coefficients are estimated.
 
 First, we declare the values of the standard deviations for the simulations.
 ``` {r sim2-hs-sd}
@@ -312,7 +312,7 @@ phi_ss_sim <- m1_rec * phi_ss_sim_val[1] + m2_rec * phi_ss_sim_val[2]
 ```
 
 Now, we declare the coefficients, which are taken from the ITA18 model of @Lanzano2019.
-We alsocompute the linear predictors for the model.
+We also compute the linear predictors for the model.
 
 ``` {r sim2-hs-coeff}
 coeffs <- c(3.421046409, 0.193954090, -0.021982777, 0.287149291, -1.405635476, -0.002911264, -0.394575970)
@@ -342,7 +342,7 @@ data_reg$y_sim <- as.matrix(data_reg[,names_coeffs]) %*% coeffs + dB_sim[eq] + d
 ```
 
 Firs, we perform a linear mixed effects regression (which assumes homoscedastic standard deviations).
-In general, thecoefficients are estimated well, but the standard deviations are off.
+In general, the coefficients are estimated well, but the standard deviations are off.
 
 ``` {r sim2-hs-lmer}
 # linear mixed effects regression
@@ -368,12 +368,12 @@ In the Stan model, we can mdel the standard deviations to be magnitude dependent
 Below, we compile the Stan model, and print out its code.
 
 ``` {r sim2-hs-stan-part}
-mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_tauM2_phiM2.stan'))
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_tauM_phiM.stan'))
 mod
 ```
 
 Now, we declare the data for Stan, and run the model.
-To keep running time low,we only run 200 warm-up and 200sampling iterations.
+To keep running time low, we only run 200 warm-up and 200 sampling iterations.
 
 ``` {r sim2-hs-stan-part-run, cache = TRUE}
 data_list <- list(
@@ -384,8 +384,10 @@ data_list <- list(
   eq = eq,
   stat = stat,
   MEQ = mageq,
-  tau_mb = mb_tau,
-  phi_mb = mb_phi
+  M1_eq = m1_eq,
+  M2_eq = m2_eq,
+  M1_rec = m1_rec,
+  M2_rec = m2_rec
 )
 
 fit <- mod$sample(
@@ -398,7 +400,7 @@ fit <- mod$sample(
   max_treedepth = 10,
   adapt_delta = 0.8,
   parallel_chains = 2,
-  show_messages = FALSE
+  show_exceptions = FALSE
 )
 print(fit$cmdstan_diagnose())
 print(fit$diagnostic_summary())
@@ -413,7 +415,7 @@ In the following, we run a Stan model which estimates coefficients and magitude-
 To improve sampling, we use the QR-decomposition of the desgn matrix.
 
 ``` {r sim2-hs-stan-full, cache = TRUE}
-mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_full_qr_tauM2_phiM2.stan'))
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_full_qr_tauM_phiM.stan'))
 mod
 
 data_list <- list(
@@ -426,8 +428,10 @@ data_list <- list(
   eq = eq,
   stat = stat,
   MEQ = mageq,
-  tau_mb = mb_tau,
-  phi_mb = mb_phi
+  M1_eq = m1_eq,
+  M2_eq = m2_eq,
+  M1_rec = m1_rec,
+  M2_rec = m2_rec
 )
 
 fit <- mod$sample(
@@ -440,7 +444,7 @@ fit <- mod$sample(
   max_treedepth = 10,
   adapt_delta = 0.8,
   parallel_chains = 2,
-  show_messages = FALSE
+  show_exceptions = FALSE
 )
 print(fit$cmdstan_diagnose())
 print(fit$diagnostic_summary())
@@ -552,10 +556,10 @@ data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_s2s', regex 
   xlab('phi_S2S')
 ```
 
-We can conclude from this smulation (and the repeated ones in the paper) that to the magnitude-dependent standard deviations can be estimated using Stan from total residuals, but one should also account for uncertainty.
-Estimating the values from binned random effects/resduals can work but leads to a larger bias.
+We can conclude from this smulation (and the repeated ones in the paper) that the magnitude-dependent standard deviations can be estimated using Stan from total residuals, but one should also account for uncertainty.
+Estimating the values from binned random effects/residuals can work but leads to a larger bias.
 
-Our focus is on estmating the magnitude-dependent standard deviations, but as a check we also plot the posterior distrbutions of the coefficients for the full stan model, together with the true values (black) and `lmer` estimates.
+Our focus is on estimating the magnitude-dependent standard deviations, but as a check we also plot the posterior distrbutions of the coefficients for the full stan model, together with the true values (black) and `lmer` estimates (red).
 
 ```{r sim2-hs-coeffs, out.width = '100%', fig.width=16}
 df <- data.frame(Parameter = c('c[1]','c[2]','c[3]','c[4]','c[5]','c[6]','c[7]'),
@@ -566,10 +570,139 @@ mcmc_hist(draws_full,regex_pars = 'c\\[') +
   geom_vline(aes(xintercept = lmer), data = df, linewidth = 1.5, color = 'red')
 ```
 
-## Scaling from Point Estimates of Random Effects
+### Estimating Break Points
+
+In the previous section, we have simulated data with magnitude-dependent $\tau$ and $\phi$, using a trilnear function for the magnitude dependence.
+In the Stan code, we have used the same fuctional form, and assumed that the magnitude break points are known.
+Here, we relax this assumption.
+We cannot directly estimate the break points since the Hamiltonian Monte Carlo algorithm of Stan relies on differentiation the model with respect to the parameters (loosely speaking), which leads to problems for functions with sharp beaks.
+Instead, we model the dependence using the ``logistic sigmoid'' function (called `inv_logit` in Stan), which is defined as
+$$
+\sigma(x) = \frac{1}{1 + \exp(-x)}
+$$
+Below, we run a Stan model where both $\phi_{SS}$ and $\tau$ are modeled using this function.
+``` {r sim2-hs-stan-logsig, cache=TRUE}
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_tauM_phiM_invlogit.stan'))
+mod
+
+data_list <- list(
+  N = n_rec,
+  NEQ = n_eq,
+  NSTAT = n_stat,
+  Y = as.numeric(dR_lmer),
+  eq = eq,
+  stat = stat,
+  MEQ = mageq
+)
+
+fit <- mod$sample(
+  data = data_list,
+  seed = 8472,
+  chains = 4,
+  iter_sampling = 200,
+  iter_warmup = 200,
+  refresh = 100,
+  max_treedepth = 10,
+  adapt_delta = 0.8, # increase to avoid divergences
+  parallel_chains = 2,
+  show_exceptions = FALSE
+)
+print(fit$cmdstan_diagnose())
+print(fit$diagnostic_summary())
+draws_part2 <- fit$draws()
+
+summarise_draws(subset(draws_part2, variable = c('ic','phi','tau'), regex = TRUE))
+```
+We get some warnings about incomplete mixing, which we will ignore here.
+We ranonly 400 iterations in total, and some longer chains probably lead to R-hat values that are closer to 1.
+
+
+We now plot the magnitude dependence of $\tau$ and $\phi_{SS}$, estimated using the correct functional form and the logistic sigmoid function.
+For $\tau$, the end values are similiar, but the transition is not well estimated with the logistic sigmoid function.
+Ths s due to the fact that there are not many events in total (and not many at large magnitudes), which makes the estimation difficult.
+For $\phi_{SS}$, on the other hand, the two estimated functions agree quite well.
+
+``` {r sim2-hs-logsig-results, out.width = '100%', fig.width=16}
+# function to calculate lnear predictos for magnitude scaling with break points
+func_sd_mag <- function(mag, mb) {
+  m1 <- 1 * (mag < mb[2]) - (mag - mb[1]) / (mb[2] - mb[1]) * (mag > mb[1] & mag < mb[2])
+  m2 <- 1 * (mag >= mb[2]) + (mag - mb[1]) / (mb[2] - mb[1]) * (mag > mb[1] & mag < mb[2])
+  
+  return(list(m1 = m1, m2 = m2))
+  
+}
+
+# logistic sigmoid function
+logsig <- function(x) {1/(1 + exp(-x))}
+
+# magnitudes for plotting
+mags_f <- seq(3,8,by=0.1)
+mags <- func_sd_mag(mags_f, mb_tau)
+tau_m <- as_draws_matrix(subset(draws_part, variable = 'tau_1')) %*% matrix(mags$m1, nrow = 1) +
+  as_draws_matrix(subset(draws_part, variable = 'tau_2')) %*% matrix(mags$m2, nrow = 1)
+
+# posterior distribution of tau values for different magnitudes
+tau_m_sig <- sapply(mags_f,
+                    function(m) {as_draws_matrix(subset(draws_part2, variable = 'tau_1')) - 
+                        as_draws_matrix(subset(draws_part2, variable = 'tau_2')) *
+                        logsig((m - as_draws_matrix(subset(draws_part2, variable = 'mb_tau'))) *
+                                 as_draws_matrix(subset(draws_part2, variable = 'tau_scale')))})
+
+
+p1 <- data.frame(M = mags_f, 
+           mean_true = tau_sim_val[1] * mags$m1 + tau_sim_val[2] * mags$m2,
+           mean_mod1 = colMeans(tau_m),
+           q05_mod1 = colQuantiles(tau_m, probs = 0.05),
+           q95_mod1 = colQuantiles(tau_m, probs = 0.95),
+           mean_mod2 = colMeans(tau_m_sig),
+           q05_mod2 = colQuantiles(tau_m_sig, probs = 0.05),
+           q95_mod2 = colQuantiles(tau_m_sig, probs = 0.95)) |>
+  pivot_longer(!M, names_sep = '_', names_to = c('par','mod')) |>
+  ggplot() +
+  geom_line(aes(x = M, y=value, color = mod, linetype = par), linewidth = 1.5) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.2,0.3)) +
+  scale_color_manual(values = c('red','blue','black'),
+                     labels = c('tri-linear','logistic sigmoid','true')) +
+  labs(x = 'M', y = 'tau')
+
+############ phi
+mags <- func_sd_mag(mags_f, mb_phi)
+phi_m <- as_draws_matrix(subset(draws_part, variable = 'phi_ss_1')) %*% matrix(mags$m1, nrow = 1) +
+  as_draws_matrix(subset(draws_part, variable = 'phi_ss_2')) %*% matrix(mags$m2, nrow = 1)
+
+# posterior distribution of tau values for different magnitudes
+phi_m_sig <- sapply(mags_f,
+                    function(m) {as_draws_matrix(subset(draws_part2, variable = 'phi_ss_1')) - 
+                        as_draws_matrix(subset(draws_part2, variable = 'phi_ss_2')) *
+                        logsig((m - as_draws_matrix(subset(draws_part2, variable = 'mb_phi_ss'))) *
+                                 as_draws_matrix(subset(draws_part2, variable = 'phi_ss_scale')))})
+
+
+p2 <- data.frame(M = mags_f, 
+           mean_true = phi_ss_sim_val[1] * mags$m1 + phi_ss_sim_val[2] * mags$m2,
+           mean_mod1 = colMeans(phi_m),
+           q05_mod1 = colQuantiles(phi_m, probs = 0.05),
+           q95_mod1 = colQuantiles(phi_m, probs = 0.95),
+           mean_mod2 = colMeans(phi_m_sig),
+           q05_mod2 = colQuantiles(phi_m_sig, probs = 0.05),
+           q95_mod2 = colQuantiles(phi_m_sig, probs = 0.95)) |>
+  pivot_longer(!M, names_sep = '_', names_to = c('par','mod')) |>
+  ggplot() +
+  geom_line(aes(x = M, y=value, color = mod, linetype = par), linewidth = 1.5) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.2,0.3)) +
+  scale_color_manual(values = c('red','blue','black'),
+                     labels = c('tri-linear','logistic sigmoid','true')) +
+  labs(x = 'M', y = 'phi_SS')
+
+patchwork::wrap_plots(p1, p2)
+```
+
+## Estimating Scaling from Point Estimates of Random Effects
 
 Random effects are sometimes used to estimate scaling of ground motions wth respect to new parameters, such as parameters associated with horizontal-to-vertical ratios.
-To assess poential biases, we simulate synthetic data using the ITA18 functional form, and then estimate a model without $V_{S30}$-scaling.
+To assess potential biases, we simulate synthetic data using the ITA18 functional form, and then estimate a model without $V_{S30}$-scaling.
 We then estimate the $V_{S30}$-scaling coefficient from site terms.
 
 The coefficients and linear predictors are already set.
@@ -748,7 +881,7 @@ fit <- mod$sample(
   max_treedepth = 10,
   adapt_delta = 0.8,
   parallel_chains = 2,
-  show_messages = FALSE
+  show_exceptions = FALSE
 )
 print(fit$cmdstan_diagnose())
 print(fit$diagnostic_summary())
@@ -842,8 +975,8 @@ prior_prec_phiSS    <- list(prec = list(prior = 'pc.prec', param = c(0.3, 0.01))
 ## Spatial correlations of Site Terms
 
 In nonergodic models, site terms are often modeled as spatially correlated.
-The spatial correlaion structure can be assess from point estimates of the site terms.
-Here, we simulate some data with spatally correlated site terms, to check whether we can get the model parameters back.
+The spatial correlaion structure can be assessed from point estimates of the site terms.
+Here, we simulate some data with spatially correlated site terms, to check whether we can get the model parameters back.
 
 We use the Mat\'ern covariance function for the spatial correlation of the site terms, which is defined below.
 
@@ -927,7 +1060,7 @@ form_spatial_stat_u <- y ~ 0 + intercept + f(idx_stat, model = spde_stat)
 ```
 
 
-Now, we sample the event terms, ste terms, spatially corrlated site terms, and within-event/within-site residuals, and combine them with the median predictions from ITA18.
+Now, we sample the event terms, site terms, spatially correlated site terms, and within-event/within-site residuals, and combine them with the median predictions from ITA18.
 We then fit a `lmer` model to the data.
 
 ``` {r sim-it-spatial-sample}
@@ -945,7 +1078,7 @@ dS_lmer <- ranef(fit_sim)$stat$`(Intercept)`
 ```
 
 Now, we fit the Inla models.
-We fit the full model (fixed and random effects), a model onthe total residuals, and a model on the site terms from the `lmer` fit.
+We fit the full model (fixed and random effects), a model on the total residuals, and a model on the site terms from the `lmer` fit.
 
 ``` {r sim-it-spatial-inla-fit, cache = TRUE}
 #### full model
@@ -1062,12 +1195,12 @@ patchwork::wrap_plots(p1, p2)
 ```
 
 We can see that the spatial range is quite well estimated for all approaches, and that the full model and the model based on total residuals give almost the same results.
-The model based on site terms does not lead to good results for the standard deviations, n particular for $\phi_{S2S,c}$, which is severely underestimated.
-The relative sizes ofstandard devations based on the fit from $\delta S$ are wrongly estimated.
+The model based on site terms does not lead to good results for the standard deviations, in particular for $\phi_{S2S,c}$, which is severely underestimated.
+The relative sizes of standard devations based on the fit from $\delta S$ are wrongly estimated.
 
 ## Cell-specific atteuation
 
-In this section, we simulate data based on the cell-specific attenuation model [@Kuehn2019,@Dawood2013], and estima the model parameters using the total model, aswell as from within-event/within-site residuals.
+In this section, we simulate data based on the cell-specific attenuation model [@Kuehn2019,@Dawood2013], and estimate the model parameters using the total model, as well as from within-event/within-site residuals.
 
 Read in the cell-specific distances, and some definitions.
 
