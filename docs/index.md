@@ -1955,10 +1955,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 82.5 seconds.
+## Chain 1 finished in 88.2 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 84.0 seconds.
+## Chain 2 finished in 90.5 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -1969,13 +1969,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 79.9 seconds.
+## Chain 4 finished in 82.4 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 84.5 seconds.
+## Chain 3 finished in 86.6 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 82.7 seconds.
-## Total execution time: 167.5 seconds.
+## Mean chain execution time: 86.9 seconds.
+## Total execution time: 175.3 seconds.
 ```
 
 ```r
@@ -1983,7 +1983,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-1-80b26b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-2-80b26b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-3-80b26b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-4-80b26b.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-1-80ba3e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-2-80ba3e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-3-80ba3e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-4-80ba3e.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2003,7 +2003,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-1-80b26b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-2-80b26b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-3-80b26b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-4-80b26b.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-1-80ba3e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-2-80ba3e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-3-80ba3e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-4-80ba3e.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -2502,5 +2502,67 @@ rbind(data.frame(inla.tmarginal(function(x) sqrt(exp(-x)),
 
 <img src="pictures/sim-it-inla-results-1.png" width="50%" />
 
+# Plots of Repeated Simulations
+
+In the paper, we show results from many repeated simulations, typically as density plots of estimated parameters.
+The simulations are carried out using code as in this document, looping over the simulations and keeping the estimated parameters.
+Here, we generate some of the plots of the paper.
+
+## $V_{S30}$-Scaling from Site Terms
+
+Here, we show results of estimating the coefficient for the $V_{S30}$-scaling from the full model, site terms, and a mixed-effects regression of total residuals.
+We performed the repeated simulations for both the CB141 data and the Ialian data, and below we show results for both.
+We see very similar results, with a larger bias for the estimaton from well-recorded stations (more than 9 records) for the Italian data.
+There are less such stations in the Italian data set, which results in this larger bias.
+This is a reminder that the size of the biases that can occur depends on the data set.
+
+
+```r
+set1 <- RColorBrewer::brewer.pal(7, "Set1")
+coeff_vs <- -0.394575970
+
+# Results for simulations based on CB14 data
+load(file = file.path('./Git/MixedModels_Biases/', 'results', 'res_vs_ita18_CB.Rdata'))
+xlab <- expression(paste(c[vs]))
+names <- c('full','dS','dS(N>10)','dR')
+df <- data.frame(res_val[,c(1,5,10,15)]) %>% set_names(names) %>%
+  pivot_longer(everything())
+df$name <- factor(df$name, names)
+
+p1 <- ggplot(df) +
+  geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
+  geom_vline(xintercept = coeff_vs, linewidth = 1.5) +
+  scale_color_manual(values=set1,
+                     labels = c('full',TeX('$\\widehat{\\delta S}$'),
+                                TeX('$\\widehat{\\delta S}$ ($N \\geq 10$)'),
+                                TeX('$\\widehat{\\delta R}$'))) +
+  guides(color = guide_legend(title=NULL)) +
+  labs(x = xlab, title = 'CB14 Data') +
+  theme(legend.position = c(0.2,0.8))
+
+
+# Results for simulations based on Italian
+load(file = file.path('./Git/MixedModels_Biases/', 'results', 'res_vs_ita18_italy.Rdata'))
+xlab <- expression(paste(c[vs]))
+names <- c('full','dS','dS(N>10)','dR')
+df <- data.frame(res_val[,c(1,5,10,15)]) %>% set_names(names) %>%
+  pivot_longer(everything())
+df$name <- factor(df$name, names)
+
+p2 <- ggplot(df) +
+  geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
+  geom_vline(xintercept = coeff_vs, linewidth = 1.5) +
+  scale_color_manual(values=set1,
+                     labels = c('full',TeX('$\\widehat{\\delta S}$'),
+                                TeX('$\\widehat{\\delta S}$ ($N \\geq 10$)'),
+                                TeX('$\\widehat{\\delta R}$'))) +
+  guides(color = guide_legend(title=NULL)) +
+  labs(x = xlab, title = 'Italian Data') +
+  theme(legend.position = c(0.2,0.8))
+
+patchwork::wrap_plots(p1, p2)
+```
+
+<img src="pictures/plot-vs-1.png" width="100%" />
 
 # References

@@ -1519,5 +1519,64 @@ rbind(data.frame(inla.tmarginal(function(x) sqrt(exp(-x)),
   guides(color = guide_legend(title = NULL))
 ```
 
+# Plots of Repeated Simulations
+
+In the paper, we show results from many repeated simulations, typically as density plots of estimated parameters.
+The simulations are carried out using code as in this document, looping over the simulations and keeping the estimated parameters.
+Here, we generate some of the plots of the paper.
+
+## $V_{S30}$-Scaling from Site Terms
+
+Here, we show results of estimating the coefficient for the $V_{S30}$-scaling from the full model, site terms, and a mixed-effects regression of total residuals.
+We performed the repeated simulations for both the CB141 data and the Ialian data, and below we show results for both.
+We see very similar results, with a larger bias for the estimaton from well-recorded stations (more than 9 records) for the Italian data.
+There are less such stations in the Italian data set, which results in this larger bias.
+This is a reminder that the size of the biases that can occur depends on the data set.
+
+``` {r plot-vs, out.width = '100%', fig.width=16}
+set1 <- RColorBrewer::brewer.pal(7, "Set1")
+coeff_vs <- -0.394575970
+
+# Results for simulations based on CB14 data
+load(file = file.path('./Git/MixedModels_Biases/', 'results', 'res_vs_ita18_CB.Rdata'))
+xlab <- expression(paste(c[vs]))
+names <- c('full','dS','dS(N>10)','dR')
+df <- data.frame(res_val[,c(1,5,10,15)]) %>% set_names(names) %>%
+  pivot_longer(everything())
+df$name <- factor(df$name, names)
+
+p1 <- ggplot(df) +
+  geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
+  geom_vline(xintercept = coeff_vs, linewidth = 1.5) +
+  scale_color_manual(values=set1,
+                     labels = c('full',TeX('$\\widehat{\\delta S}$'),
+                                TeX('$\\widehat{\\delta S}$ ($N \\geq 10$)'),
+                                TeX('$\\widehat{\\delta R}$'))) +
+  guides(color = guide_legend(title=NULL)) +
+  labs(x = xlab, title = 'CB14 Data') +
+  theme(legend.position = c(0.2,0.8))
+
+
+# Results for simulations based on Italian
+load(file = file.path('./Git/MixedModels_Biases/', 'results', 'res_vs_ita18_italy.Rdata'))
+xlab <- expression(paste(c[vs]))
+names <- c('full','dS','dS(N>10)','dR')
+df <- data.frame(res_val[,c(1,5,10,15)]) %>% set_names(names) %>%
+  pivot_longer(everything())
+df$name <- factor(df$name, names)
+
+p2 <- ggplot(df) +
+  geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
+  geom_vline(xintercept = coeff_vs, linewidth = 1.5) +
+  scale_color_manual(values=set1,
+                     labels = c('full',TeX('$\\widehat{\\delta S}$'),
+                                TeX('$\\widehat{\\delta S}$ ($N \\geq 10$)'),
+                                TeX('$\\widehat{\\delta R}$'))) +
+  guides(color = guide_legend(title=NULL)) +
+  labs(x = xlab, title = 'Italian Data') +
+  theme(legend.position = c(0.2,0.8))
+
+patchwork::wrap_plots(p1, p2)
+```
 
 # References
