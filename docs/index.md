@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "02 October, 2023"
+date: "04 October, 2023"
 output:
   html_document:
     keep_md: true
@@ -92,9 +92,323 @@ breaks <- 10^(-10:10)
 minor_breaks <- rep(1:9, 21)*(10^rep(-10:10, each=9))
 ```
 
+# Example
+
+We start with an example using real data, just to get familiar with the concepts.
+In later sections, we use simulations, which make it easy to compare the results from a regression to the true values of the parameters.
+We use the Ialian data from the ITA18 GMM (@Lanzano2018, see also @Caramenti2022), and perform a regression on peak ground acceleration (PGA), using the functional form of ITA18.
+
+First, we read in the data and prepare a data frame for the regression.
+In total, there are 4784 records from 137 events and 923 stations.
+
+
+```r
+data_it <- read.csv(file.path('./Git/MixedModels_Biases/','/data','italian_data_pga_id_utm_stat.csv'))
+
+# Set linear predictors
+mh = 5.5
+mref = 5.324
+h = 6.924
+attach(data_it)
+b1 = (mag-mh)*(mag<=mh)
+b2 = (mag-mh)*(mag>mh)
+c1 = (mag-mref)*log10(sqrt(JB_complete^2+h^2))
+c2 = log10(sqrt(JB_complete^2+h^2))
+c3 = sqrt(JB_complete^2+h^2)
+f1 = as.numeric(fm_type_code == "SS")
+f2 = as.numeric(fm_type_code == "TF")
+k = log10(vs30/800)*(vs30<=1500)+log10(1500/800)*(vs30>1500)
+y = log10(rotD50_pga)
+detach(data_it)
+
+n_rec <- length(b1)
+eq <- data_it$EQID
+stat <- data_it$STATID
+n_eq <- max(eq)
+n_stat <- max(stat)
+n_rec <- nrow(data_it)
+
+data_reg <- data.frame(Y = y,
+                       M1 = b1,
+                       M2 = b2,
+                       MlogR = c1,
+                       logR = c2,
+                       R = c3,
+                       Fss = f1,
+                       Frv = f2,
+                       logVS = k,
+                       eq = eq,
+                       stat = stat,
+                       intercept = 1
+)
+print(paste0('Number of records: ',n_rec,'; number of events: ',n_eq,'; number of stations: ',n_stat))
+```
+
+```
+## [1] "Number of records: 4784; number of events: 137; number of stations: 923"
+```
+
+Now we fit the model.
+We fit the model using `lmer`, `inla`, and using Stan via `cmdstanr`.
+The Stan code can be found at <https://github.com/nikuehn/MixedModels_Biases/tree/main/stan>.
+
+
+
+```r
+##################
+# fit using lmer
+
+fit_lmer <- lmer(Y ~ M1 + M2 + MlogR + logR + R + Fss + Frv + logVS + (1|eq) + (1|stat), data_reg)
+
+tmp <- as.data.frame(VarCorr(fit_lmer))$sdcor
+phi_s2s_lmer <- tmp[1]
+tau_lmer <- tmp[2]
+phi_ss_lmer <- tmp[3]
+
+deltaB <- ranef(fit_lmer)$eq$`(Intercept)`
+deltaS <- ranef(fit_lmer)$stat$`(Intercept)`
+sd_deltaB <- as.numeric(arm::se.ranef(fit_lmer)$eq)
+sd_deltaS <- as.numeric(arm::se.ranef(fit_lmer)$stat)
+deltaWS <- data_reg$Y - predict(fit_lmer)
+sd_deltaWS <- sqrt(sd_deltaB[eq]^2 + sd_deltaS[stat]^2) # approximately
+
+##################
+# fit using Inla
+# priors for standard deviation paramters
+prior_prec_tau    <- list(prec = list(prior = 'pc.prec', param = c(0.3, 0.01)))
+prior_prec_phiS2S    <- list(prec = list(prior = 'pc.prec', param = c(0.3, 0.01))) 
+prior_prec_phiSS    <- list(prec = list(prior = 'pc.prec', param = c(0.3, 0.01))) 
+
+form <- Y ~ M1 + M2 + MlogR + logR + R + Fss + Frv + logVS +
+  f(eq, model = "iid", hyper = prior_prec_tau) + 
+  f(stat, model = "iid",hyper = prior_prec_phiS2S)
+
+fit_inla <- inla(form, 
+                 data = data_reg,
+                 family="gaussian",
+                 control.family = list(hyper = prior_prec_phiSS)
+)
+
+sd_deltaS_inla <-fit_inla$summary.random$stat$sd
+sd_deltaB_inla <-fit_inla$summary.random$eq$sd
+sd_deltaWS_inla <- fit_inla$summary.fitted.values$sd
+
+##################
+# fit using Stan
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_full_qr.stan'))
+data_list <- list(
+  N = n_rec,
+  NEQ = n_eq,
+  NSTAT = n_stat,
+  K = 9,
+  Y = as.numeric(data_reg$Y),
+  X = data_reg[,c("M1", "M2", "MlogR", "logR", "R", "Fss", "Frv", "logVS")], # design matrix
+  eq = eq,
+  stat = stat,
+  alpha = c(1,1,1)
+)
+
+fit_stan <- mod$sample(
+  data = data_list,
+  seed = 8472,
+  chains = 4,
+  iter_sampling = 200,
+  iter_warmup = 200,
+  refresh = 100,
+  max_treedepth = 10,
+  adapt_delta = 0.8,
+  parallel_chains = 2,
+  show_exceptions = FALSE
+)
+```
+
+```
+## Running MCMC with 4 chains, at most 2 in parallel...
+## 
+## Chain 1 Iteration:   1 / 400 [  0%]  (Warmup) 
+## Chain 2 Iteration:   1 / 400 [  0%]  (Warmup) 
+## Chain 1 Iteration: 100 / 400 [ 25%]  (Warmup) 
+## Chain 2 Iteration: 100 / 400 [ 25%]  (Warmup) 
+## Chain 2 Iteration: 200 / 400 [ 50%]  (Warmup) 
+## Chain 2 Iteration: 201 / 400 [ 50%]  (Sampling) 
+## Chain 1 Iteration: 200 / 400 [ 50%]  (Warmup) 
+## Chain 1 Iteration: 201 / 400 [ 50%]  (Sampling) 
+## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
+## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
+## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
+## Chain 2 finished in 68.8 seconds.
+## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
+## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
+## Chain 1 finished in 70.0 seconds.
+## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
+## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
+## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
+## Chain 3 Iteration: 200 / 400 [ 50%]  (Warmup) 
+## Chain 3 Iteration: 201 / 400 [ 50%]  (Sampling) 
+## Chain 4 Iteration: 200 / 400 [ 50%]  (Warmup) 
+## Chain 4 Iteration: 201 / 400 [ 50%]  (Sampling) 
+## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
+## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
+## Chain 3 finished in 71.8 seconds.
+## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
+## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
+## Chain 4 finished in 84.1 seconds.
+## 
+## All 4 chains finished successfully.
+## Mean chain execution time: 73.6 seconds.
+## Total execution time: 154.7 seconds.
+```
+
+```r
+draws <- fit_stan$draws()
+
+sd_deltaB_stan <- colSds(subset(as_draws_matrix(draws), variable = 'eqterm'))
+sd_deltaS_stan <- colSds(subset(as_draws_matrix(draws), variable = 'statterm'))
+sd_deltaWS_stan <- colSds(subset(as_draws_matrix(draws), variable = 'resid'))
+```
+
+The estimated standard deviations are very similar between the three methods (we have used relatively weak priors, so their influence is not very strong).
+For Inla, we transform the mean estimate of the precisions into an estimate of the standard deviations, which is technicaly not correct, but for the sake of smplicity we keep it.
+The difference is small.
+Note that for the Bayesian models (Inla and Stan), the output is not just a point estimate of $\phi_{SS}$, $\tau$, and $\phi_{S2S}$, but the full posterior distribution.
+
+
+```r
+df <- data.frame(inla = 1/sqrt(fit_inla$summary.hyperpar$mean),
+                 lmer = c(phi_ss_lmer, tau_lmer, phi_s2s_lmer),
+                 stan = colMeans(subset(as_draws_matrix(draws), variable = c('phi_ss','tau','phi_s2s'))),
+                 row.names = c('phi_ss','tau','phi_s2s'))
+knitr::kable(df, digits = 5, row.names = TRUE,
+             caption = "Comparison of standard deviation estimates.")
+```
+
+
+
+Table: Comparison of standard deviation estimates.
+
+|        |    inla|    lmer|    stan|
+|:-------|-------:|-------:|-------:|
+|phi_ss  | 0.20407| 0.20413| 0.20415|
+|tau     | 0.14141| 0.14327| 0.14436|
+|phi_s2s | 0.23341| 0.23365| 0.23314|
+The coefficient estimates are also very close.
+
+
+```r
+df <- data.frame(inla = fit_inla$summary.fixed$mean,
+                 lmer = fixef(fit_lmer),
+                 stan = colMeans(subset(as_draws_matrix(draws), variable = c('^c\\['), regex = TRUE)))
+knitr::kable(df, digits = 5, row.names = TRUE,
+             caption = "Comparison of standard coefficient estimates.")
+```
+
+
+
+Table: Comparison of standard coefficient estimates.
+
+|            |     inla|     lmer|     stan|
+|:-----------|--------:|--------:|--------:|
+|(Intercept) |  3.40873|  3.40922|  3.40668|
+|M1          |  0.20329|  0.20343|  0.20201|
+|M2          |  0.00275|  0.00256|  0.01465|
+|MlogR       |  0.28754|  0.28764|  0.28749|
+|logR        | -1.39877| -1.39899| -1.39601|
+|R           | -0.00309| -0.00309| -0.00311|
+|Fss         |  0.11563|  0.11583|  0.11048|
+|Frv         | -0.00142| -0.00107| -0.00363|
+|logVS       | -0.42206| -0.42193| -0.42216|
+
+Below we plot the standard deviations of the random effects (conditional standard deviations for `lmer`, standard deviations of the posterior distribution for the Bayesian models) against number of records per event/station.
+In general, they are similar between all three fits.
+We see larger standard deviations of the event terms for the Bayesian models for large magnitudes, which is due to the fact that uncertainty due to coefficients is included, which is larger for large magnitudes.
+
+
+```r
+p1 <- data.frame(unique(data_it[,c('EQID','mag')]),
+                 lmer = sd_deltaB,
+                 inla = sd_deltaB_inla,
+                 stan = sd_deltaB_stan,
+                 nrec = as.numeric(table(eq))) |>
+  pivot_longer(c(lmer, inla, stan)) %>%
+  ggplot() +
+  geom_point(aes(x = nrec, y = value, color = name, size = mag)) +
+  scale_x_log10(breaks = breaks, minor_breaks = minor_breaks) +
+  ylim(c(0,0.125)) +
+  labs(x = 'number of records per event', y = TeX("$\\psi(\\widehat{\\delta B})$")) +
+  guides(color = guide_legend(title=NULL), size = guide_legend(title = 'M')) +
+  theme(legend.position = c(0.85,0.75))
+
+p2 <- data.frame(unique(data_it[,c('STATID','vs30')]),
+           logvs = unique(data_reg[,c('stat','logVS')])[,2],
+           lmer = sd_deltaS,
+           inla = sd_deltaS_inla,
+           stan = sd_deltaS_stan,
+           nrec = as.numeric(table(stat))) |>
+  pivot_longer(c(lmer, inla, stan)) %>%
+  ggplot() +
+  geom_point(aes(x = nrec, y = value, color = name, size = vs30)) +
+  scale_x_log10(breaks = breaks, minor_breaks = minor_breaks) +
+  ylim(c(0,0.18)) +
+  labs(x = 'number of records per station', y = TeX("$\\psi(\\widehat{\\delta S})$")) +
+  guides(color = guide_legend(title=NULL), size = guide_legend(title = 'VS30')) +
+  theme(legend.position = c(0.85,0.75))
+
+patchwork::wrap_plots(p1,p2)
+```
+
+```
+## Warning: Removed 1 rows containing missing values (`geom_point()`).
+```
+
+<img src="pictures/example-plot-se-1.png" width="100%" />
+Below we compare the standard deviations for $\delta WS$.
+For `lmer`, this is an approximation, calculated as $\psi(\widehat{\delta WS})^2 = \psi(\widehat{\delta B})^2 + \psi(\widehat{\delta S})^2$.
+At larger values of $\psi(\widehat{\delta WS})$, the values from `lmer` are larger compared to the ones from Inla or Stan, which is probably due to some correlations between (estimated) event terms and site terms.
+These corelations are implicitly taken into account in the Bayesian models.
+
+
+```r
+data.frame(inla = sd_deltaWS_inla, 
+           lmer = sd_deltaWS,
+           stan = sd_deltaWS_stan) %>%
+  pivot_longer(!inla) %>%
+  ggplot() +
+  geom_point(aes(x = inla, y = value, color = name), size = 4) +
+  geom_abline(color = 'black', linewidth = 1.5) +
+  lims(x = c(0.03,0.21), y = c(0.03, 0.21)) +
+  labs(x = TeX("$\\psi(\\widehat{\\delta WS}_{inla})$"),
+       y = TeX("$\\psi(\\widehat{\\delta WS})$")) +
+  guides(color = guide_legend(title=NULL))
+```
+
+<img src="pictures/example-plot-se2-1.png" width="50%" />
+
+We now calculate the conditional standard deviations of the random effects from the `lmer` fit according to EQuation (3) of the paper, which makes use of the desing matrix of the random effects $\mathbf{Z}$, and the relative covariance factor $\mathbf{\Lambda}$.
+
+
+```r
+Z <- getME(fit_lmer, 'Z') #sparse Z design matrix
+lambda <- getME(fit_lmer, 'Lambda')
+
+V <- sigma(fit_lmer)^2 * lambda %*% solve((t(lambda) %*% t(Z) %*% Z %*% lambda + diag(n_eq + n_stat))) %*% lambda
+
+# station entries are first
+print(c(sum((arm::se.ranef(fit_lmer)$stat)^2 / diag(V)[1:n_stat]),
+        sum((arm::se.ranef(fit_lmer)$eq)^2 / diag(V)[(n_stat + 1):(n_eq + n_stat)])))
+```
+
+```
+## [1] 923 137
+```
+
 # Simulations using CB14 Data
 
-Use Californian data from @Campbell2014.
+We now turn to simulations to show how biases can occur when the uncertainty of random effects (event and site terms) as well as residuals is neglected.
+We first focus on standard deviations, which are underestimated when estimated from point estimates.
+This becomes a problem when standard deviations are modeled as heteroscedastic, e.e. dependent on predictor variables such as magnitude and/or distance.
+
+We illustrate the underestimation of standard deviations on the Californian data from the GMM of @Campbell2014.
+In total, there are 12482 records from 274 events and 1519 stations.
 
 
 ```r
@@ -131,12 +445,18 @@ stat <- data_reg$stat
 
 mageq <- unique(data_reg[,c('eq','M')])$M # event-specific magnitude
 magstat <- unique(data_reg[,c('stat','M_stat')])$M_stat # station-specific magnitude
+
+print(paste0('Number of records: ',n_rec,'; number of events: ',n_eq,'; number of stations: ',n_stat))
+```
+
+```
+## [1] "Number of records: 12482; number of events: 274; number of stations: 1519"
 ```
 
 ## Homoscedastic Standard Deviations
 
 First, we simulate data using standard deviations that do not depend on any predictor variables, i.e. are homoscedastic.
-We do not simulate any fixed effects structure, in this example we focus biases in the estimation of standard deviations.
+We do not simulate any fixed effects structure, in this example we focus on biases in the estimation of standard deviations.
 
 First, we fix the standard deviations:
 
@@ -1635,10 +1955,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 38.2 seconds.
+## Chain 1 finished in 82.5 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 39.2 seconds.
+## Chain 2 finished in 84.0 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -1649,13 +1969,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 64.6 seconds.
+## Chain 4 finished in 79.9 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 67.8 seconds.
+## Chain 3 finished in 84.5 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 52.4 seconds.
-## Total execution time: 106.2 seconds.
+## Mean chain execution time: 82.7 seconds.
+## Total execution time: 167.5 seconds.
 ```
 
 ```r
@@ -1663,7 +1983,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-1-8181c8.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-2-8181c8.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-3-8181c8.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-4-8181c8.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-1-80b26b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-2-80b26b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-3-80b26b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-4-80b26b.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -1683,7 +2003,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-1-8181c8.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-2-8181c8.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-3-8181c8.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmppN7oFZ/gmm_partition_wvar_corr-202310021510-4-8181c8.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-1-80b26b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-2-80b26b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-3-80b26b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpwDYgOT/gmm_partition_wvar_corr-202310041616-4-80b26b.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
