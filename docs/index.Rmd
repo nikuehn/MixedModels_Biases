@@ -93,9 +93,9 @@ breaks <- 10^(-10:10)
 minor_breaks <- rep(1:9, 21)*(10^rep(-10:10, each=9))
 ```
 
-# Example
+## Example
 
-We start with an example using real data, just to get familiar with the concepts.
+We start with an example using real data, just to get familiar with the concepts and code.
 In later sections, we use simulations, which make it easy to compare the results from a regression to the true values of the parameters.
 We use the Ialian data from the ITA18 GMM (@Lanzano2018, see also @Caramenti2022), and perform a regression on peak ground acceleration (PGA), using the functional form of ITA18.
 
@@ -225,7 +225,7 @@ sd_deltaWS_stan <- colSds(subset(as_draws_matrix(draws), variable = 'resid'))
 The estimated standard deviations are very similar between the three methods (we have used relatively weak priors, so their influence is not very strong).
 For Inla, we transform the mean estimate of the precisions into an estimate of the standard deviations, which is technicaly not correct, but for the sake of smplicity we keep it.
 The difference is small.
-Note that for the Bayesian models (Inla and Stan), the output is not just a point estimate of $\phi_{SS}$, $\tau$, and $\phi_{S2S}$, but the full posterior distribution.
+Note that for the Bayesian models (Inla and Stan), the full output is not just a point estimate of $\phi_{SS}$, $\tau$, and $\phi_{S2S}$, but the full posterior distribution.
 
 ``` {r example-comp-sd}
 df <- data.frame(inla = 1/sqrt(fit_inla$summary.hyperpar$mean),
@@ -300,7 +300,7 @@ data.frame(inla = sd_deltaWS_inla,
   guides(color = guide_legend(title=NULL))
 ```
 
-We now calculate the conditional standard deviations of the random effects from the `lmer` fit according to EQuation (3) of the paper, which makes use of the desing matrix of the random effects $\mathbf{Z}$, and the relative covariance factor $\mathbf{\Lambda}$.
+We now calculate the conditional standard deviations of the random effects from the `lmer` fit according to Equation (3) of the paper, which makes use of the design matrix of the random effects $\mathbf{Z}$, and the relative covariance factor $\mathbf{\Lambda}$.
 
 ``` {r example-calc-se}
 Z <- getME(fit_lmer, 'Z') #sparse Z design matrix
@@ -319,13 +319,20 @@ We now turn to simulations to show how biases can occur when the uncertainty of 
 We first focus on standard deviations, which are underestimated when estimated from point estimates.
 This becomes a problem when standard deviations are modeled as heteroscedastic, e.e. dependent on predictor variables such as magnitude and/or distance.
 
-We illustrate the underestimation of standard deviations on the Californian data from the GMM of @Campbell2014.
+We illustrate the underestimation of standard deviations on the WUS data from the GMM of @Campbell2014.
 In total, there are 12482 records from 274 events and 1519 stations.
 
-```{r read-data-cb}
+```{r read-data-cb, out.width = '100%', fig.width=16}
 data_reg <- read.csv(file.path('./Git/MixedModels_Biases/','/data','data_cb.csv'))
 print(dim(data_reg))
 print(head(data_reg))
+
+p1 <- ggplot(data_reg) +
+  geom_point(aes(x = Rrup, y = M)) +
+  scale_x_log10(breaks = breaks, minor_breaks = minor_breaks)
+p2 <- ggplot(unique(data_reg[,c('eqid','M')])) +
+  geom_histogram(aes(x = M))
+patchwork::wrap_plots(p1, p2)
 ```
 
 ```{r prepare-data-cb}
@@ -367,7 +374,10 @@ data_reg$y_sim <- dB_sim[eq] + dS_sim[stat] + dWS_sim
 ```
 
 Now we perform the linear mixed effects regression using `lmer`.
-We use maximum likelihood instead of restricted maximum likelihood in this case to show the equivalnce of the calculations of standard deviations.
+We use maximum likelihood instead of restricted maximum likelihood in this case to show the equivalence of the calculations of standard deviations.
+In the paper, we also use Stan to estimate the random effects and standard deviations, but we omit this here to save time and space.
+As we have seen for the Italian data, we get very similar results sing `lmer` and Stan, ad this is also reflected by the results shown in the paper.
+Frequentist methods are still overwhelmingly used in GMM development, so it makes sense to focus on them here.
 
 ```{r sim1-lmer}
 fit_sim <- lmer(y_sim ~ (1 | eq) + (1 | stat), data_reg, REML = FALSE)
@@ -434,9 +444,9 @@ As we can see, the values from `lmer` and calculated according to Equation (4) a
 For $\phi_{SS}$, there is a small discrepancy, since the conditional standard deviations are just an approximation.
 These values are also close to the true ones, while the standard deviations calculated from the point estimates are underestimating the true values.
 The differences is largest for $\phi_{S2S}$, since there are several stations with only few recordings and thus large conditional standard deviations.
-Sampling from the conditional distrbution of the random effects/standard deviations leads to values that are close to the true ones.
+Sampling from the conditional distrbution of the random effects/standard deviations leads to values that are closer to the true ones.
 
-Since there are many stations with very few recordings, the value of $\phi_{S2S}$ is severly underestimated when calculated from the point estimates of the site terms.
+Since there are many stations with very few recordings, the value of $\phi_{S2S}$ is severely underestimated when calculated from the point estimates of the site terms.
 Thus, we now test whether what happens if we only use stations with at least 5 or 10 recordings.
 As we can see from the histogram (which shows 200 repeated simulations), on average the values are closer to the true value, but some bias remains.
 If one chooses to go this route, one also has to account for the fact that the estimates are based on fewer stations.
@@ -464,17 +474,18 @@ data.frame(res_s2s) |> set_names(c('lmer', 'all','N_rec >= 5','N_rec >= 10')) |>
   geom_density(aes(x = value, color = name),linewidth = 1.5, key_glyph = draw_key_path) +
   geom_vline(xintercept = phi_s2s_sim, linewidth = 1.5) +
   guides(color = guide_legend(title = NULL)) +
-  xlab('phi_S2S')
+  xlab('phi_S2S') +
+  theme(legend.position = c(0.4,0.8))
 ```
 
 
 In GMM development, the standard deviations are often modeled as dependent on some predictor variables such as magnitude.
 @Bayless2018 contains a magnitude-dependent $\phi_{S2S}$, which is modeled using the mean magnitude of all records by station.
 @Kotha2022 performed a Breusch-Pagan test [@Breusch1979] for heteroscedasticity to test for magnitude dependence of $\tau$ and $\phi_{SS}$.
-Below, we calcuale the p-values for the simulated data (which we know is not heterosceastic).
+Below, we calcuale the p-values for the simulated data (which we know is not heteroscedastic).
 The null hypothesis is that the data is homoscedastc, and a low p-value is the probability of observing data if the null hypothesis were true.
 Based on point estimates, one would conclude that site terms and within-event/within-site residuals are heteroscedastic.
-In this context, be aware of hypothesis tests [@Wasserstein2019,@Amrhein2019].
+In this context, be aware of hypothesis tests [@Wasserstein2019],[@Amrhein2019].
 
 ```{r sim1-bptest}
 # calculate p-value of Breusch-Pagan test, testing for dependence on magnitude
@@ -494,6 +505,85 @@ df <- data.frame(
 
 knitr::kable(df, digits = 5, row.names = TRUE,
              caption = "P-values from Breusch-Pagan test.")
+```
+
+Below, we calculate the standard deviations of the site terms $\delta S$, the event terms $\delta B$, and the residuals $\delta WS$, both for the simulated (true) values, and the point estimates from the `lmer` fit.
+The true value of the standard deviation is shown as a horizontal black line.
+
+We can decreasing values wth magnitude in the standard deviations estimated from the point estimates for $\phi_{S2S}$ and $\phi_{SS}$, while the values calculated from the true samples are more constant (as they shold be).
+While one always needs to be careful with different numbers of events/records/stations within each bin, plots like these (wth patterns as in these plots) are often used to conclude that standard deviations ($\phi_{S2S}$ and $\phi_{SS}$ in this case) should be modeled as magnitude dependent, which in this case is not true.
+
+``` {r sim1-plot-sd-bin, out.width = '100%', fig.width=12}
+# mamgnitude break points for bins
+magbins <- c(3,4,5,6,7,8)
+
+# site terms
+df_stat <- data.frame(M = magstat, dS_sim, dS_lmer) %>% 
+  mutate(bin = cut(M, breaks = magbins, labels = FALSE)) %>%
+  group_by(bin) %>%
+  mutate(sd_sim = sd(dS_sim),
+         sd_lmer = sd(dS_lmer),
+         meanM = mean(M)) %>%
+  arrange(M)
+
+p1 <- cbind(unique(df_stat[,c('sd_sim','sd_lmer','meanM')]), 
+      m1 = magbins[1:(length(magbins)-1)],
+      m2 = magbins[2:length(magbins)]) |>
+  pivot_longer(!c(m1,m2,meanM)) |>
+  ggplot() +
+  geom_segment(aes(x = m1, xend = m2, y=value, yend = value, color = name), linewidth = 1.5) +
+  scale_color_manual(values = c('red','blue'),
+                     labels = c('lmer','sim')) +
+  geom_hline(yintercept = phi_s2s_sim, linewidth = 1.5) +
+  guides(color = guide_legend(title=NULL)) +
+  labs(x = 'M', y = 'phi_S2S') +
+  theme(legend.position = c(0.2,0.2))
+
+# event terms
+df_eq <- data.frame(M = mageq, dB_sim, dB_lmer) %>% 
+  mutate(bin = cut(M, breaks = magbins, labels = FALSE)) %>%
+  group_by(bin) %>%
+  mutate(sd_sim = sd(dB_sim),
+         sd_lmer = sd(dB_lmer),
+         meanM = mean(M)) %>%
+  arrange(M)
+
+p2 <- cbind(unique(df_eq[,c('sd_sim','sd_lmer','meanM')]), 
+      m1 = magbins[1:(length(magbins)-1)],
+      m2 = magbins[2:length(magbins)]) |>
+  pivot_longer(!c(m1,m2,meanM)) |>
+  ggplot() +
+  geom_segment(aes(x = m1, xend = m2, y=value, yend = value, color = name), linewidth = 1.5) +
+  scale_color_manual(values = c('red','blue'),
+                     labels = c('lmer','sim')) +
+  geom_hline(yintercept = tau_sim, linewidth = 1.5) +
+  guides(color = guide_legend(title=NULL)) +
+  labs(x = 'M', y = 'tau') +
+  theme(legend.position = 'none')
+
+# residuals
+df_rec <- data.frame(M = data_reg$M, dWS_sim, dWS_lmer) %>% 
+  mutate(bin = cut(M, breaks = magbins, labels = FALSE)) %>%
+  group_by(bin) %>%
+  mutate(sd_sim = sd(dWS_sim),
+         sd_lmer = sd(dWS_lmer),
+         meanM = mean(M)) %>%
+  arrange(M)
+
+p3 <- cbind(unique(df_rec[,c('sd_sim','sd_lmer','meanM')]), 
+      m1 = magbins[1:(length(magbins)-1)],
+      m2 = magbins[2:length(magbins)]) |>
+  pivot_longer(!c(m1,m2,meanM)) |>
+  ggplot() +
+  geom_segment(aes(x = m1, xend = m2, y=value, yend = value, color = name), linewidth = 1.5) +
+  scale_color_manual(values = c('red','blue'),
+                     labels = c('lmer','sim')) +
+  geom_hline(yintercept = phi_ss_sim, linewidth = 1.5) +
+  guides(color = guide_legend(title=NULL)) +
+  labs(x = 'M', y = 'phi_SS') +
+  theme(legend.position = 'none')
+
+patchwork::wrap_plots(p1,p2,p3, ncol = 2)
 ```
 
 ## Magnitude-Dependent Tau and Phi_SS
@@ -765,7 +855,7 @@ p2 <- data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_ss_2',
 patchwork::wrap_plots(p1,p2)
 ```
 
-And finally, the posterior dstribution of $\phi_{S2S}$.
+And finally, the posterior distribution of $\phi_{S2S}$.
 
 ``` {r sim2-hs-plot-phis2s}
 data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_s2s', regex = FALSE),
@@ -1190,8 +1280,17 @@ coeffs <- c(3.421046409, 0.193954090, -0.021982777, 0.287149291,
 names_coeffs <- c("intercept", "M1", "M2", "MlogR", "logR", "R", "Fss", "Frv", "logVS")
 ```
 
+
+``` {r italy-data-plots, out.width = '100%', fig.width=16}
+p1 <- ggplot(data_it) +
+  geom_point(aes(x = JB_complete, y = mag)) +
+  scale_x_log10(breaks = breaks, minor_breaks = minor_breaks)
+p2 <- ggplot(unique(data_it[,c('EQID','mag')])) +
+  geom_histogram(aes(x = mag))
+patchwork::wrap_plots(p1, p2)
+```
 We simulate data for some spatial models on the Italian data, and we use INLA (<https://www.r-inla.org/>) to estimate the models.
-Below, we set the penalize complexity prior [@Simpson2017] for the standard deviations, used throughout.
+Below, we set the penalized complexity prior [@Simpson2017] for the standard deviations, used throughout.
 
 ``` {r italy-inla-priors}
 prior_prec_tau <- list(prec = list(prior = 'pc.prec', param = c(0.3, 0.01)))
@@ -1525,6 +1624,68 @@ In the paper, we show results from many repeated simulations, typically as densi
 The simulations are carried out using code as in this document, looping over the simulations and keeping the estimated parameters.
 Here, we generate some of the plots of the paper.
 
+## Simulations with Homscedastic Standard Deviations
+
+``` {r res-sim1-all}
+# Results for simulations based on CB14 data
+load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim1_CB.Rdata'))
+
+# look at values of standard deviations estimated from lmer and Stan (using mean and median of posterior)
+df <- data.frame(res_val) |>
+  set_names(c('phis2s_lmer_mode','tau_lmer_mode','phiss_lmer_mode',
+              'phis2s_stan_mean','tau_stan_mean','phiss_stan_mean',
+              'phis2s_stan_median','tau_stan_median','phiss_stan_median'))
+knitr::kable(head(df), digits = 5, row.names = TRUE,
+             caption = "Comparison of standard deviation estimates.")
+```
+
+
+``` {r res-sm1-all-plots, out.width = '100%'}
+p1 <- data.frame(res_val[,c(1,4,7)], res_sd[,c(1,4)]) %>%
+  set_names(c('lmer_max', 'stan_mean','stan_median','lmer_sd(dS)','stan_sd(dS)')) %>%
+  pivot_longer(everything(), names_sep = '_', names_to = c('model','type')) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = type), linewidth = 1.5, key_glyph = draw_key_path) +
+  labs(x = expression(paste(widehat(phi)[S2S]))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = 'none',
+        legend.key.width = unit(2,'cm')) +
+  geom_vline(xintercept = phi_s2s_sim, linewidth = 1.5) +
+  scale_linetype_manual(values = c(1,2,3,4),
+                        labels = c('max','mean','median',TeX("sd($\\delta S$)"))) +
+  scale_color_manual(values = c('red','blue'))
+
+p2 <- data.frame(res_val[,c(2,5,8)], res_sd[,c(2,5)]) %>%
+  set_names(c('lmer_max', 'stan_mean','stan_median','lmer_sd(dB)','stan_sd(dB)')) %>%
+  pivot_longer(everything(), names_sep = '_', names_to = c('model','type')) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = type), linewidth = 1.5, key_glyph = draw_key_path) +
+  labs(x = expression(widehat(tau))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.3,0.65),
+        legend.key.width = unit(1.5,'cm')) +
+  geom_vline(xintercept = tau_sim, linewidth = 1.5) +
+  scale_linetype_manual(values = c(1,2,3,4),
+                        labels = c('max','mean','median',TeX("sd($\\delta B$)"))) +
+  scale_color_manual(values = c('red','blue'))
+
+p3 <- data.frame(res_val[,c(3,6,9)], res_sd[,c(3,6)]) %>%
+  set_names(c('lmer_max', 'stan_mean','stan_median','lmer_sd(dWS)','stan_sd(dWS)')) %>%
+  pivot_longer(everything(), names_sep = '_', names_to = c('model','type')) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = type), linewidth = 1.5, key_glyph = draw_key_path) +
+  labs(x = expression(paste(widehat(phi)[SS]))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = 'none',
+        legend.key.width = unit(2,'cm')) +
+  geom_vline(xintercept = phi_ss_sim, linewidth = 1.5) +
+  scale_linetype_manual(values = c(1,2,3,4),
+                        labels = c('max','mean','median',TeX("sd($\\delta WS$)"))) +
+  scale_color_manual(values = c('red','blue'))
+
+patchwork::wrap_plots(p1,p2,p3, ncol = 2)
+```
+
 ## $V_{S30}$-Scaling from Site Terms
 
 Here, we show results of estimating the coefficient for the $V_{S30}$-scaling from the full model, site terms, and a mixed-effects regression of total residuals.
@@ -1533,7 +1694,7 @@ We see very similar results, with a larger bias for the estimaton from well-reco
 There are less such stations in the Italian data set, which results in this larger bias.
 This is a reminder that the size of the biases that can occur depends on the data set.
 
-``` {r plot-vs, out.width = '100%', fig.width=16}
+``` {r plot-vs, out.width = '100%', fig.width=12}
 set1 <- RColorBrewer::brewer.pal(7, "Set1")
 coeff_vs <- -0.394575970
 

@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "04 October, 2023"
+date: "06 October, 2023"
 output:
   html_document:
     keep_md: true
@@ -92,9 +92,9 @@ breaks <- 10^(-10:10)
 minor_breaks <- rep(1:9, 21)*(10^rep(-10:10, each=9))
 ```
 
-# Example
+## Example
 
-We start with an example using real data, just to get familiar with the concepts.
+We start with an example using real data, just to get familiar with the concepts and code.
 In later sections, we use simulations, which make it easy to compare the results from a regression to the true values of the parameters.
 We use the Ialian data from the ITA18 GMM (@Lanzano2018, see also @Caramenti2022), and perform a regression on peak ground acceleration (PGA), using the functional form of ITA18.
 
@@ -270,7 +270,7 @@ sd_deltaWS_stan <- colSds(subset(as_draws_matrix(draws), variable = 'resid'))
 The estimated standard deviations are very similar between the three methods (we have used relatively weak priors, so their influence is not very strong).
 For Inla, we transform the mean estimate of the precisions into an estimate of the standard deviations, which is technicaly not correct, but for the sake of smplicity we keep it.
 The difference is small.
-Note that for the Bayesian models (Inla and Stan), the output is not just a point estimate of $\phi_{SS}$, $\tau$, and $\phi_{S2S}$, but the full posterior distribution.
+Note that for the Bayesian models (Inla and Stan), the full output is not just a point estimate of $\phi_{SS}$, $\tau$, and $\phi_{S2S}$, but the full posterior distribution.
 
 
 ```r
@@ -383,7 +383,7 @@ data.frame(inla = sd_deltaWS_inla,
 
 <img src="pictures/example-plot-se2-1.png" width="50%" />
 
-We now calculate the conditional standard deviations of the random effects from the `lmer` fit according to EQuation (3) of the paper, which makes use of the desing matrix of the random effects $\mathbf{Z}$, and the relative covariance factor $\mathbf{\Lambda}$.
+We now calculate the conditional standard deviations of the random effects from the `lmer` fit according to Equation (3) of the paper, which makes use of the design matrix of the random effects $\mathbf{Z}$, and the relative covariance factor $\mathbf{\Lambda}$.
 
 
 ```r
@@ -407,7 +407,7 @@ We now turn to simulations to show how biases can occur when the uncertainty of 
 We first focus on standard deviations, which are underestimated when estimated from point estimates.
 This becomes a problem when standard deviations are modeled as heteroscedastic, e.e. dependent on predictor variables such as magnitude and/or distance.
 
-We illustrate the underestimation of standard deviations on the Californian data from the GMM of @Campbell2014.
+We illustrate the underestimation of standard deviations on the WUS data from the GMM of @Campbell2014.
 In total, there are 12482 records from 274 events and 1519 stations.
 
 
@@ -433,6 +433,21 @@ print(head(data_reg))
 ## 5         1   25    129 6.19 256.82  12.90  12.90  3    5  6.190   256.82
 ## 6         1   25    162 6.19 527.92  15.96  15.96  3    6  6.190   527.92
 ```
+
+```r
+p1 <- ggplot(data_reg) +
+  geom_point(aes(x = Rrup, y = M)) +
+  scale_x_log10(breaks = breaks, minor_breaks = minor_breaks)
+p2 <- ggplot(unique(data_reg[,c('eqid','M')])) +
+  geom_histogram(aes(x = M))
+patchwork::wrap_plots(p1, p2)
+```
+
+```
+## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+```
+
+<img src="pictures/read-data-cb-1.png" width="100%" />
 
 
 ```r
@@ -480,7 +495,10 @@ data_reg$y_sim <- dB_sim[eq] + dS_sim[stat] + dWS_sim
 ```
 
 Now we perform the linear mixed effects regression using `lmer`.
-We use maximum likelihood instead of restricted maximum likelihood in this case to show the equivalnce of the calculations of standard deviations.
+We use maximum likelihood instead of restricted maximum likelihood in this case to show the equivalence of the calculations of standard deviations.
+In the paper, we also use Stan to estimate the random effects and standard deviations, but we omit this here to save time and space.
+As we have seen for the Italian data, we get very similar results sing `lmer` and Stan, ad this is also reflected by the results shown in the paper.
+Frequentist methods are still overwhelmingly used in GMM development, so it makes sense to focus on them here.
 
 
 ```r
@@ -586,9 +604,9 @@ As we can see, the values from `lmer` and calculated according to Equation (4) a
 For $\phi_{SS}$, there is a small discrepancy, since the conditional standard deviations are just an approximation.
 These values are also close to the true ones, while the standard deviations calculated from the point estimates are underestimating the true values.
 The differences is largest for $\phi_{S2S}$, since there are several stations with only few recordings and thus large conditional standard deviations.
-Sampling from the conditional distrbution of the random effects/standard deviations leads to values that are close to the true ones.
+Sampling from the conditional distrbution of the random effects/standard deviations leads to values that are closer to the true ones.
 
-Since there are many stations with very few recordings, the value of $\phi_{S2S}$ is severly underestimated when calculated from the point estimates of the site terms.
+Since there are many stations with very few recordings, the value of $\phi_{S2S}$ is severely underestimated when calculated from the point estimates of the site terms.
 Thus, we now test whether what happens if we only use stations with at least 5 or 10 recordings.
 As we can see from the histogram (which shows 200 repeated simulations), on average the values are closer to the true value, but some bias remains.
 If one chooses to go this route, one also has to account for the fact that the estimates are based on fewer stations.
@@ -617,7 +635,8 @@ data.frame(res_s2s) |> set_names(c('lmer', 'all','N_rec >= 5','N_rec >= 10')) |>
   geom_density(aes(x = value, color = name),linewidth = 1.5, key_glyph = draw_key_path) +
   geom_vline(xintercept = phi_s2s_sim, linewidth = 1.5) +
   guides(color = guide_legend(title = NULL)) +
-  xlab('phi_S2S')
+  xlab('phi_S2S') +
+  theme(legend.position = c(0.4,0.8))
 ```
 
 <img src="pictures/sim1-phis2s-1.png" width="50%" />
@@ -626,10 +645,10 @@ data.frame(res_s2s) |> set_names(c('lmer', 'all','N_rec >= 5','N_rec >= 10')) |>
 In GMM development, the standard deviations are often modeled as dependent on some predictor variables such as magnitude.
 @Bayless2018 contains a magnitude-dependent $\phi_{S2S}$, which is modeled using the mean magnitude of all records by station.
 @Kotha2022 performed a Breusch-Pagan test [@Breusch1979] for heteroscedasticity to test for magnitude dependence of $\tau$ and $\phi_{SS}$.
-Below, we calcuale the p-values for the simulated data (which we know is not heterosceastic).
+Below, we calcuale the p-values for the simulated data (which we know is not heteroscedastic).
 The null hypothesis is that the data is homoscedastc, and a low p-value is the probability of observing data if the null hypothesis were true.
 Based on point estimates, one would conclude that site terms and within-event/within-site residuals are heteroscedastic.
-In this context, be aware of hypothesis tests [@Wasserstein2019,@Amrhein2019].
+In this context, be aware of hypothesis tests [@Wasserstein2019],[@Amrhein2019].
 
 
 ```r
@@ -661,6 +680,88 @@ Table: P-values from Breusch-Pagan test.
 |point estimate | 0.00000| 0.99921| 0.0000|
 |sample         | 0.80356| 0.53500| 0.6652|
 |true           | 0.10186| 0.98637| 0.8881|
+
+Below, we calculate the standard deviations of the site terms $\delta S$, the event terms $\delta B$, and the residuals $\delta WS$, both for the simulated (true) values, and the point estimates from the `lmer` fit.
+The true value of the standard deviation is shown as a horizontal black line.
+
+We can decreasing values wth magnitude in the standard deviations estimated from the point estimates for $\phi_{S2S}$ and $\phi_{SS}$, while the values calculated from the true samples are more constant (as they shold be).
+While one always needs to be careful with different numbers of events/records/stations within each bin, plots like these (wth patterns as in these plots) are often used to conclude that standard deviations ($\phi_{S2S}$ and $\phi_{SS}$ in this case) should be modeled as magnitude dependent, which in this case is not true.
+
+
+```r
+# mamgnitude break points for bins
+magbins <- c(3,4,5,6,7,8)
+
+# site terms
+df_stat <- data.frame(M = magstat, dS_sim, dS_lmer) %>% 
+  mutate(bin = cut(M, breaks = magbins, labels = FALSE)) %>%
+  group_by(bin) %>%
+  mutate(sd_sim = sd(dS_sim),
+         sd_lmer = sd(dS_lmer),
+         meanM = mean(M)) %>%
+  arrange(M)
+
+p1 <- cbind(unique(df_stat[,c('sd_sim','sd_lmer','meanM')]), 
+      m1 = magbins[1:(length(magbins)-1)],
+      m2 = magbins[2:length(magbins)]) |>
+  pivot_longer(!c(m1,m2,meanM)) |>
+  ggplot() +
+  geom_segment(aes(x = m1, xend = m2, y=value, yend = value, color = name), linewidth = 1.5) +
+  scale_color_manual(values = c('red','blue'),
+                     labels = c('lmer','sim')) +
+  geom_hline(yintercept = phi_s2s_sim, linewidth = 1.5) +
+  guides(color = guide_legend(title=NULL)) +
+  labs(x = 'M', y = 'phi_S2S') +
+  theme(legend.position = c(0.2,0.2))
+
+# event terms
+df_eq <- data.frame(M = mageq, dB_sim, dB_lmer) %>% 
+  mutate(bin = cut(M, breaks = magbins, labels = FALSE)) %>%
+  group_by(bin) %>%
+  mutate(sd_sim = sd(dB_sim),
+         sd_lmer = sd(dB_lmer),
+         meanM = mean(M)) %>%
+  arrange(M)
+
+p2 <- cbind(unique(df_eq[,c('sd_sim','sd_lmer','meanM')]), 
+      m1 = magbins[1:(length(magbins)-1)],
+      m2 = magbins[2:length(magbins)]) |>
+  pivot_longer(!c(m1,m2,meanM)) |>
+  ggplot() +
+  geom_segment(aes(x = m1, xend = m2, y=value, yend = value, color = name), linewidth = 1.5) +
+  scale_color_manual(values = c('red','blue'),
+                     labels = c('lmer','sim')) +
+  geom_hline(yintercept = tau_sim, linewidth = 1.5) +
+  guides(color = guide_legend(title=NULL)) +
+  labs(x = 'M', y = 'tau') +
+  theme(legend.position = 'none')
+
+# residuals
+df_rec <- data.frame(M = data_reg$M, dWS_sim, dWS_lmer) %>% 
+  mutate(bin = cut(M, breaks = magbins, labels = FALSE)) %>%
+  group_by(bin) %>%
+  mutate(sd_sim = sd(dWS_sim),
+         sd_lmer = sd(dWS_lmer),
+         meanM = mean(M)) %>%
+  arrange(M)
+
+p3 <- cbind(unique(df_rec[,c('sd_sim','sd_lmer','meanM')]), 
+      m1 = magbins[1:(length(magbins)-1)],
+      m2 = magbins[2:length(magbins)]) |>
+  pivot_longer(!c(m1,m2,meanM)) |>
+  ggplot() +
+  geom_segment(aes(x = m1, xend = m2, y=value, yend = value, color = name), linewidth = 1.5) +
+  scale_color_manual(values = c('red','blue'),
+                     labels = c('lmer','sim')) +
+  geom_hline(yintercept = phi_ss_sim, linewidth = 1.5) +
+  guides(color = guide_legend(title=NULL)) +
+  labs(x = 'M', y = 'phi_SS') +
+  theme(legend.position = 'none')
+
+patchwork::wrap_plots(p1,p2,p3, ncol = 2)
+```
+
+<img src="pictures/sim1-plot-sd-bin-1.png" width="100%" />
 
 ## Magnitude-Dependent Tau and Phi_SS
 
@@ -1334,7 +1435,7 @@ patchwork::wrap_plots(p1,p2)
 
 <img src="pictures/sim2-hs-plot-phiss-1.png" width="100%" />
 
-And finally, the posterior dstribution of $\phi_{S2S}$.
+And finally, the posterior distribution of $\phi_{S2S}$.
 
 
 ```r
@@ -1955,10 +2056,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 88.2 seconds.
+## Chain 1 finished in 173.6 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 90.5 seconds.
+## Chain 2 finished in 175.6 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -1969,13 +2070,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 82.4 seconds.
+## Chain 4 finished in 156.7 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 86.6 seconds.
+## Chain 3 finished in 165.4 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 86.9 seconds.
-## Total execution time: 175.3 seconds.
+## Mean chain execution time: 167.8 seconds.
+## Total execution time: 339.8 seconds.
 ```
 
 ```r
@@ -1983,7 +2084,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-1-80ba3e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-2-80ba3e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-3-80ba3e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-4-80ba3e.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-1-8195c0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-2-8195c0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-3-8195c0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-4-8195c0.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2003,7 +2104,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-1-80ba3e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-2-80ba3e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-3-80ba3e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp0HQm54/gmm_partition_wvar_corr-202310041657-4-80ba3e.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-1-8195c0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-2-8195c0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-3-8195c0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-4-8195c0.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -2125,8 +2226,28 @@ coeffs <- c(3.421046409, 0.193954090, -0.021982777, 0.287149291,
 names_coeffs <- c("intercept", "M1", "M2", "MlogR", "logR", "R", "Fss", "Frv", "logVS")
 ```
 
+
+
+```r
+p1 <- ggplot(data_it) +
+  geom_point(aes(x = JB_complete, y = mag)) +
+  scale_x_log10(breaks = breaks, minor_breaks = minor_breaks)
+p2 <- ggplot(unique(data_it[,c('EQID','mag')])) +
+  geom_histogram(aes(x = mag))
+patchwork::wrap_plots(p1, p2)
+```
+
+```
+## Warning: Transformation introduced infinite values in continuous x-axis
+```
+
+```
+## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+```
+
+<img src="pictures/italy-data-plots-1.png" width="100%" />
 We simulate data for some spatial models on the Italian data, and we use INLA (<https://www.r-inla.org/>) to estimate the models.
-Below, we set the penalize complexity prior [@Simpson2017] for the standard deviations, used throughout.
+Below, we set the penalized complexity prior [@Simpson2017] for the standard deviations, used throughout.
 
 
 ```r
@@ -2507,6 +2628,85 @@ rbind(data.frame(inla.tmarginal(function(x) sqrt(exp(-x)),
 In the paper, we show results from many repeated simulations, typically as density plots of estimated parameters.
 The simulations are carried out using code as in this document, looping over the simulations and keeping the estimated parameters.
 Here, we generate some of the plots of the paper.
+
+## Simulations with Homscedastic Standard Deviations
+
+
+```r
+# Results for simulations based on CB14 data
+load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim1_CB.Rdata'))
+
+# look at values of standard deviations estimated from lmer and Stan (using mean and median of posterior)
+df <- data.frame(res_val) |>
+  set_names(c('phis2s_lmer_mode','tau_lmer_mode','phiss_lmer_mode',
+              'phis2s_stan_mean','tau_stan_mean','phiss_stan_mean',
+              'phis2s_stan_median','tau_stan_median','phiss_stan_median'))
+knitr::kable(head(df), digits = 5, row.names = TRUE,
+             caption = "Comparison of standard deviation estimates.")
+```
+
+
+
+Table: Comparison of standard deviation estimates.
+
+|   | phis2s_lmer_mode| tau_lmer_mode| phiss_lmer_mode| phis2s_stan_mean| tau_stan_mean| phiss_stan_mean| phis2s_stan_median| tau_stan_median| phiss_stan_median|
+|:--|----------------:|-------------:|---------------:|----------------:|-------------:|---------------:|------------------:|---------------:|-----------------:|
+|1  |          0.44047|       0.41113|         0.49731|          0.44057|       0.41290|         0.49736|            0.44043|         0.41206|           0.49739|
+|2  |          0.43806|       0.38546|         0.50110|          0.43856|       0.38625|         0.50106|            0.43880|         0.38556|           0.50103|
+|3  |          0.41809|       0.39821|         0.49917|          0.41878|       0.40063|         0.49908|            0.41830|         0.40080|           0.49911|
+|4  |          0.44819|       0.39679|         0.49623|          0.44831|       0.39811|         0.49633|            0.44800|         0.39716|           0.49623|
+|5  |          0.42661|       0.37745|         0.49996|          0.42682|       0.37868|         0.49990|            0.42693|         0.37818|           0.49985|
+|6  |          0.43857|       0.42567|         0.50033|          0.43869|       0.42727|         0.50032|            0.43828|         0.42638|           0.50028|
+
+
+
+```r
+p1 <- data.frame(res_val[,c(1,4,7)], res_sd[,c(1,4)]) %>%
+  set_names(c('lmer_max', 'stan_mean','stan_median','lmer_sd(dS)','stan_sd(dS)')) %>%
+  pivot_longer(everything(), names_sep = '_', names_to = c('model','type')) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = type), linewidth = 1.5, key_glyph = draw_key_path) +
+  labs(x = expression(paste(widehat(phi)[S2S]))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = 'none',
+        legend.key.width = unit(2,'cm')) +
+  geom_vline(xintercept = phi_s2s_sim, linewidth = 1.5) +
+  scale_linetype_manual(values = c(1,2,3,4),
+                        labels = c('max','mean','median',TeX("sd($\\delta S$)"))) +
+  scale_color_manual(values = c('red','blue'))
+
+p2 <- data.frame(res_val[,c(2,5,8)], res_sd[,c(2,5)]) %>%
+  set_names(c('lmer_max', 'stan_mean','stan_median','lmer_sd(dB)','stan_sd(dB)')) %>%
+  pivot_longer(everything(), names_sep = '_', names_to = c('model','type')) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = type), linewidth = 1.5, key_glyph = draw_key_path) +
+  labs(x = expression(widehat(tau))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.3,0.65),
+        legend.key.width = unit(1.5,'cm')) +
+  geom_vline(xintercept = tau_sim, linewidth = 1.5) +
+  scale_linetype_manual(values = c(1,2,3,4),
+                        labels = c('max','mean','median',TeX("sd($\\delta B$)"))) +
+  scale_color_manual(values = c('red','blue'))
+
+p3 <- data.frame(res_val[,c(3,6,9)], res_sd[,c(3,6)]) %>%
+  set_names(c('lmer_max', 'stan_mean','stan_median','lmer_sd(dWS)','stan_sd(dWS)')) %>%
+  pivot_longer(everything(), names_sep = '_', names_to = c('model','type')) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = type), linewidth = 1.5, key_glyph = draw_key_path) +
+  labs(x = expression(paste(widehat(phi)[SS]))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = 'none',
+        legend.key.width = unit(2,'cm')) +
+  geom_vline(xintercept = phi_ss_sim, linewidth = 1.5) +
+  scale_linetype_manual(values = c(1,2,3,4),
+                        labels = c('max','mean','median',TeX("sd($\\delta WS$)"))) +
+  scale_color_manual(values = c('red','blue'))
+
+patchwork::wrap_plots(p1,p2,p3, ncol = 2)
+```
+
+<img src="pictures/res-sm1-all-plots-1.png" width="100%" />
 
 ## $V_{S30}$-Scaling from Site Terms
 
