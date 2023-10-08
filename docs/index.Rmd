@@ -29,10 +29,13 @@ This page provides code for the simulations shown in ``Potential Biases in Empir
 For details, see the paper.
 
 We use simulations from different models and/or using different data sets to illustrate potential biases.
-In particular, standard devations are underestimated when they are calculated from point estimates of random effects/residuals.
+In particular, standard deviations are underestimated when they are calculated from point estimates of random effects/residuals.
 For the simulations, we randomly sample event terms, site terms, and within-event/within-site residuals from their respective distributions, and then perform regessions on the sampled data to see whether we recover get the parameters used in the simulations.
-In this document, we generally do a single simuation for different cases, which typically highlight the points we want to made.
+In this document, we generally do a single simulation for different cases, which typically highlight the points we want to made.
 For the paper, we repeat these simulations multiple times, since due to the relative small sample size in ground-motion data sets there ca be variability from one sample to the next.
+
+Simulation can be a pwoeful tool to gain understanding of different models [@DeBruine2021].
+There exist several `R`-packages for simulation (e.g. [faux](https://debruine.github.io/faux/index.html), [simDesign](https://cran.r-project.org/web/packages/SimDesign/vignettes/SimDesign-intro.html), [simulator](https://github.com/jacobbien/simulator)), but since our models are simple, we code them up directly.
 
 In general, a ground-motion model (GMM) can be written as
 $$

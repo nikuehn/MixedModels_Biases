@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "06 October, 2023"
+date: "08 October, 2023"
 output:
   html_document:
     keep_md: true
@@ -25,10 +25,13 @@ This page provides code for the simulations shown in ``Potential Biases in Empir
 For details, see the paper.
 
 We use simulations from different models and/or using different data sets to illustrate potential biases.
-In particular, standard devations are underestimated when they are calculated from point estimates of random effects/residuals.
+In particular, standard deviations are underestimated when they are calculated from point estimates of random effects/residuals.
 For the simulations, we randomly sample event terms, site terms, and within-event/within-site residuals from their respective distributions, and then perform regessions on the sampled data to see whether we recover get the parameters used in the simulations.
-In this document, we generally do a single simuation for different cases, which typically highlight the points we want to made.
+In this document, we generally do a single simulation for different cases, which typically highlight the points we want to made.
 For the paper, we repeat these simulations multiple times, since due to the relative small sample size in ground-motion data sets there ca be variability from one sample to the next.
+
+Simulation can be a pwoeful tool to gain understanding of different models [@DeBruine2021].
+There exist several `R`-packages for simulation (e.g. [faux](https://debruine.github.io/faux/index.html), [simDesign](https://cran.r-project.org/web/packages/SimDesign/vignettes/SimDesign-intro.html), [simulator](https://github.com/jacobbien/simulator)), but since our models are simple, we code them up directly.
 
 In general, a ground-motion model (GMM) can be written as
 $$
@@ -2056,10 +2059,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 173.6 seconds.
+## Chain 1 finished in 43.0 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 175.6 seconds.
+## Chain 2 finished in 43.5 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2070,13 +2073,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 156.7 seconds.
+## Chain 4 finished in 69.9 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 165.4 seconds.
+## Chain 3 finished in 72.4 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 167.8 seconds.
-## Total execution time: 339.8 seconds.
+## Mean chain execution time: 57.2 seconds.
+## Total execution time: 115.7 seconds.
 ```
 
 ```r
@@ -2084,7 +2087,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-1-8195c0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-2-8195c0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-3-8195c0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-4-8195c0.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-1-8113a0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-2-8113a0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-3-8113a0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-4-8113a0.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2104,7 +2107,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-1-8195c0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-2-8195c0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-3-8195c0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGKbYiF/gmm_partition_wvar_corr-202310061828-4-8195c0.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-1-8113a0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-2-8113a0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-3-8113a0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-4-8113a0.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
