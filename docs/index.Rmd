@@ -94,6 +94,9 @@ theme_set(theme_bw() + theme(
 
 breaks <- 10^(-10:10)
 minor_breaks <- rep(1:9, 21)*(10^rep(-10:10, each=9))
+
+lw <- 1.5 # linewidth
+sp <- 4 # pointsize
 ```
 
 ## Example
@@ -1626,12 +1629,18 @@ rbind(data.frame(inla.tmarginal(function(x) sqrt(exp(-x)),
 In the paper, we show results from many repeated simulations, typically as density plots of estimated parameters.
 The simulations are carried out using code as in this document, looping over the simulations and keeping the estimated parameters.
 Here, we generate some of the plots of the paper.
+Code to run the simulations can be found at <https://github.com/nikuehn/MixedModels_Biases/tree/main/r>.
 
-## Simulations with Homscedastic Standard Deviations
+## Simulations with Homoscedastic Standard Deviations
 
 ``` {r res-sim1-all}
 # Results for simulations based on CB14 data
 load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim1_CB.Rdata'))
+
+# simulation
+tau_sim <- 0.4
+phi_s2s_sim <- 0.43
+phi_ss_sim <- 0.5
 
 # look at values of standard deviations estimated from lmer and Stan (using mean and median of posterior)
 df <- data.frame(res_val) |>
@@ -1643,7 +1652,7 @@ knitr::kable(head(df), digits = 5, row.names = TRUE,
 ```
 
 
-``` {r res-sm1-all-plots, out.width = '100%'}
+``` {r res-sim1-all-plots, out.width = '100%'}
 p1 <- data.frame(res_val[,c(1,4,7)], res_sd[,c(1,4)]) %>%
   set_names(c('lmer_max', 'stan_mean','stan_median','lmer_sd(dS)','stan_sd(dS)')) %>%
   pivot_longer(everything(), names_sep = '_', names_to = c('model','type')) %>%
@@ -1686,7 +1695,83 @@ p3 <- data.frame(res_val[,c(3,6,9)], res_sd[,c(3,6)]) %>%
                         labels = c('max','mean','median',TeX("sd($\\delta WS$)"))) +
   scale_color_manual(values = c('red','blue'))
 
-patchwork::wrap_plots(p1,p2,p3, ncol = 2)
+leg <- ggpubr::get_legend(p2)
+patchwork::wrap_plots(p1,p2 + theme(legend.position = 'none'),p3,ggpubr::as_ggplot(leg), ncol = 2)
+```
+
+
+## Heteroscedastic Standard Deviations
+
+``` {r res-sim2-hs-all}
+# Results for simulations based on CB14 data
+load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim2_heteroscedastic_coeff_CB.Rdata'))
+load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim2_heteroscedastic_coeff_stan2_CB.Rdata'))
+
+coeffs <- c(3.421046409, 0.193954090, -0.021982777, 0.287149291, -1.405635476, -0.002911264, -0.394575970)
+names_coeffs <- c("intercept", "M1", "M2", "MlogR", "logR", "R", "logVS")
+
+phi_s2s_sim <- 0.43
+tau_sim_val <- c(0.4,0.25)
+phi_sim_val <- c(0.55,0.4)
+mb_tau <- c(5,6)
+mb_phi <- c(4.5,5.5)
+```
+
+``` {r res-sim2-hs-all-plots, out.width = '100%'}
+p1 <- data.frame(res_phi, res_phi_stan[,c(1,2)], res_phi_stan2[,c(1,2)]) %>%
+  set_names(c('sd(dWS)_lowm','sd(dWS)+unc_lowm','sd(dWS)_largem','sd(dWS)+unc_largem',
+              'stan_lowm','stan_largem','stanf_lowm','stanf_largem')) %>%
+  pivot_longer(everything(), names_to = c('model','mag'),names_sep = '_') %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = mag), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(xintercept = phi_sim_val[2], linewidth = lw) +
+  geom_vline(xintercept = phi_sim_val[1], linetype = 'dashed', linewidth = lw) +
+  scale_color_manual(values = c('orange','red','blue','cyan'),
+                     labels = c(TeX("sd(\\widehat{\\delta WS})"),
+                                TeX("sd(\\widehat{\\delta WS} + unc)"),
+                                TeX('stan ($\\delta R$)'), 'stan (full)')) +
+  scale_linetype_manual(values = c(1,2),
+                        labels = c(TeX(sprintf("$M \\geq %.1f$",mb_phi[2])), 
+                                   TeX(sprintf("$M \\leq %.1f$",mb_phi[1])))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.5,0.8),
+        legend.key.width = unit(2,'cm')) +
+  labs(x = expression(paste(widehat(phi)[SS]))) +
+  lims(y = c(0,100))
+
+p2 <- data.frame(res_tau, res_tau_stan[,c(1,2)], res_tau_stan2[,c(1,2)]) %>%
+  set_names(c('sd(dB)_lowm','sd(dB)+unc_lowm','sd(dB)_largem','sd(dB)+unc_largem',
+              'stan_lowm','stan_largem','stanf_lowm','stanf_largem')) %>%
+  pivot_longer(everything(), names_to = c('model','mag'),names_sep = '_') %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = mag), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(xintercept = tau_sim_val[2], linewidth = lw) +
+  geom_vline(xintercept = tau_sim_val[1], linetype = 'dashed', linewidth = lw) +
+  scale_color_manual(values = c('orange','red','blue','cyan'),
+                     labels = c(TeX("sd(\\widehat{\\delta B})"),
+                                TeX("sd(\\widehat{\\delta B} + unc)"),
+                                TeX('stan ($\\delta R$)'), 'stan (full)')) +
+  scale_linetype_manual(values = c(1,2),
+                        labels = c(TeX(sprintf("$M \\geq %.1f$",mb_tau[2])), 
+                                   TeX(sprintf("$M \\leq %.1f$",mb_tau[1])))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = 'none') +
+  labs(x = expression(paste(widehat(tau))))
+
+p3 <- data.frame(res_phis2s[,c(1,3)], res_phis2s_stan2[,1]) %>%
+  set_names(c('lmer','stan','stanf')) %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(xintercept = phi_s2s_sim, linewidth = lw) +
+  scale_color_manual(values = c('red','blue','cyan'),
+                     labels = c('lmer', TeX('stan ($\\delta R$)'), 'stan (full')) +
+  guides(color = guide_legend(title = NULL)) +
+  theme(legend.position = 'none') +
+  labs(x = expression(paste(widehat(phi)[S2S])))
+
+leg <- ggpubr::get_legend(p1)
+patchwork::wrap_plots(p1 + theme(legend.position = 'none'),p2,p3,ggpubr::as_ggplot(leg), ncol = 2)
 ```
 
 ## $V_{S30}$-Scaling from Site Terms
@@ -1741,6 +1826,32 @@ p2 <- ggplot(df) +
   theme(legend.position = c(0.2,0.8))
 
 patchwork::wrap_plots(p1, p2)
+```
+
+## Correlations
+
+``` {r res-sim4-corr-all}
+# Results for simulations based on CB14 data
+df_res_cor <- read.csv(file.path('./Git/MixedModels_Biases/', 'results',
+                                        'res_sim_cor_CB_N50.csv'))
+
+tau_sim <- 0.4
+phi_s2s_sim <- 0.43
+phi_ss_sim <- 0.5
+
+rho <- 0.7
+tau2 <- 1
+
+df_res_cor %>% pivot_longer(c(cor_sim, cor_lme, cor_mean)) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(aes(xintercept = rho), linewidth = lw) +
+  scale_color_manual(values=c("blue", 'red', 'gray'),
+                     labels=c("2-step lmer", "1-step stan", "sim")
+  ) +
+  guides(color = guide_legend(title=NULL)) +
+  theme(legend.position = c(0.18,0.89)) +
+  labs(x = expression(widehat(rho)))
 ```
 
 # References

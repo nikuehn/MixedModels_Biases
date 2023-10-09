@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "08 October, 2023"
+date: "09 October, 2023"
 output:
   html_document:
     keep_md: true
@@ -93,6 +93,9 @@ theme_set(theme_bw() + theme(
 
 breaks <- 10^(-10:10)
 minor_breaks <- rep(1:9, 21)*(10^rep(-10:10, each=9))
+
+lw <- 1.5 # linewidth
+sp <- 4 # pointsize
 ```
 
 ## Example
@@ -2059,10 +2062,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 43.0 seconds.
+## Chain 1 finished in 35.6 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 43.5 seconds.
+## Chain 2 finished in 36.1 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2073,13 +2076,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 69.9 seconds.
+## Chain 4 finished in 32.0 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 72.4 seconds.
+## Chain 3 finished in 33.7 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 57.2 seconds.
-## Total execution time: 115.7 seconds.
+## Mean chain execution time: 34.3 seconds.
+## Total execution time: 69.6 seconds.
 ```
 
 ```r
@@ -2087,7 +2090,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-1-8113a0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-2-8113a0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-3-8113a0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-4-8113a0.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-1-817ec2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-2-817ec2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-3-817ec2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-4-817ec2.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2107,7 +2110,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-1-8113a0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-2-8113a0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-3-8113a0.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpLtFALi/gmm_partition_wvar_corr-202310081109-4-8113a0.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-1-817ec2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-2-817ec2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-3-817ec2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-4-817ec2.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -2631,13 +2634,19 @@ rbind(data.frame(inla.tmarginal(function(x) sqrt(exp(-x)),
 In the paper, we show results from many repeated simulations, typically as density plots of estimated parameters.
 The simulations are carried out using code as in this document, looping over the simulations and keeping the estimated parameters.
 Here, we generate some of the plots of the paper.
+Code to run the simulations can be found at <https://github.com/nikuehn/MixedModels_Biases/tree/main/r>.
 
-## Simulations with Homscedastic Standard Deviations
+## Simulations with Homoscedastic Standard Deviations
 
 
 ```r
 # Results for simulations based on CB14 data
 load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim1_CB.Rdata'))
+
+# simulation
+tau_sim <- 0.4
+phi_s2s_sim <- 0.43
+phi_ss_sim <- 0.5
 
 # look at values of standard deviations estimated from lmer and Stan (using mean and median of posterior)
 df <- data.frame(res_val) |>
@@ -2706,10 +2715,90 @@ p3 <- data.frame(res_val[,c(3,6,9)], res_sd[,c(3,6)]) %>%
                         labels = c('max','mean','median',TeX("sd($\\delta WS$)"))) +
   scale_color_manual(values = c('red','blue'))
 
-patchwork::wrap_plots(p1,p2,p3, ncol = 2)
+leg <- ggpubr::get_legend(p2)
+patchwork::wrap_plots(p1,p2 + theme(legend.position = 'none'),p3,ggpubr::as_ggplot(leg), ncol = 2)
 ```
 
-<img src="pictures/res-sm1-all-plots-1.png" width="100%" />
+<img src="pictures/res-sim1-all-plots-1.png" width="100%" />
+
+
+## Heteroscedastic Standard Deviations
+
+
+```r
+# Results for simulations based on CB14 data
+load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim2_heteroscedastic_coeff_CB.Rdata'))
+load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim2_heteroscedastic_coeff_stan2_CB.Rdata'))
+
+coeffs <- c(3.421046409, 0.193954090, -0.021982777, 0.287149291, -1.405635476, -0.002911264, -0.394575970)
+names_coeffs <- c("intercept", "M1", "M2", "MlogR", "logR", "R", "logVS")
+
+phi_s2s_sim <- 0.43
+tau_sim_val <- c(0.4,0.25)
+phi_sim_val <- c(0.55,0.4)
+mb_tau <- c(5,6)
+mb_phi <- c(4.5,5.5)
+```
+
+
+```r
+p1 <- data.frame(res_phi, res_phi_stan[,c(1,2)], res_phi_stan2[,c(1,2)]) %>%
+  set_names(c('sd(dWS)_lowm','sd(dWS)+unc_lowm','sd(dWS)_largem','sd(dWS)+unc_largem',
+              'stan_lowm','stan_largem','stanf_lowm','stanf_largem')) %>%
+  pivot_longer(everything(), names_to = c('model','mag'),names_sep = '_') %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = mag), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(xintercept = phi_sim_val[2], linewidth = lw) +
+  geom_vline(xintercept = phi_sim_val[1], linetype = 'dashed', linewidth = lw) +
+  scale_color_manual(values = c('orange','red','blue','cyan'),
+                     labels = c(TeX("sd(\\widehat{\\delta WS})"),
+                                TeX("sd(\\widehat{\\delta WS} + unc)"),
+                                TeX('stan ($\\delta R$)'), 'stan (full)')) +
+  scale_linetype_manual(values = c(1,2),
+                        labels = c(TeX(sprintf("$M \\geq %.1f$",mb_phi[2])), 
+                                   TeX(sprintf("$M \\leq %.1f$",mb_phi[1])))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.5,0.8),
+        legend.key.width = unit(2,'cm')) +
+  labs(x = expression(paste(widehat(phi)[SS]))) +
+  lims(y = c(0,100))
+
+p2 <- data.frame(res_tau, res_tau_stan[,c(1,2)], res_tau_stan2[,c(1,2)]) %>%
+  set_names(c('sd(dB)_lowm','sd(dB)+unc_lowm','sd(dB)_largem','sd(dB)+unc_largem',
+              'stan_lowm','stan_largem','stanf_lowm','stanf_largem')) %>%
+  pivot_longer(everything(), names_to = c('model','mag'),names_sep = '_') %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = mag), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(xintercept = tau_sim_val[2], linewidth = lw) +
+  geom_vline(xintercept = tau_sim_val[1], linetype = 'dashed', linewidth = lw) +
+  scale_color_manual(values = c('orange','red','blue','cyan'),
+                     labels = c(TeX("sd(\\widehat{\\delta B})"),
+                                TeX("sd(\\widehat{\\delta B} + unc)"),
+                                TeX('stan ($\\delta R$)'), 'stan (full)')) +
+  scale_linetype_manual(values = c(1,2),
+                        labels = c(TeX(sprintf("$M \\geq %.1f$",mb_tau[2])), 
+                                   TeX(sprintf("$M \\leq %.1f$",mb_tau[1])))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = 'none') +
+  labs(x = expression(paste(widehat(tau))))
+
+p3 <- data.frame(res_phis2s[,c(1,3)], res_phis2s_stan2[,1]) %>%
+  set_names(c('lmer','stan','stanf')) %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(xintercept = phi_s2s_sim, linewidth = lw) +
+  scale_color_manual(values = c('red','blue','cyan'),
+                     labels = c('lmer', TeX('stan ($\\delta R$)'), 'stan (full')) +
+  guides(color = guide_legend(title = NULL)) +
+  theme(legend.position = 'none') +
+  labs(x = expression(paste(widehat(phi)[S2S])))
+
+leg <- ggpubr::get_legend(p1)
+patchwork::wrap_plots(p1 + theme(legend.position = 'none'),p2,p3,ggpubr::as_ggplot(leg), ncol = 2)
+```
+
+<img src="pictures/res-sim2-hs-all-plots-1.png" width="100%" />
 
 ## $V_{S30}$-Scaling from Site Terms
 
@@ -2767,5 +2856,34 @@ patchwork::wrap_plots(p1, p2)
 ```
 
 <img src="pictures/plot-vs-1.png" width="100%" />
+
+## Correlations
+
+
+```r
+# Results for simulations based on CB14 data
+df_res_cor <- read.csv(file.path('./Git/MixedModels_Biases/', 'results',
+                                        'res_sim_cor_CB_N50.csv'))
+
+tau_sim <- 0.4
+phi_s2s_sim <- 0.43
+phi_ss_sim <- 0.5
+
+rho <- 0.7
+tau2 <- 1
+
+df_res_cor %>% pivot_longer(c(cor_sim, cor_lme, cor_mean)) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(aes(xintercept = rho), linewidth = lw) +
+  scale_color_manual(values=c("blue", 'red', 'gray'),
+                     labels=c("2-step lmer", "1-step stan", "sim")
+  ) +
+  guides(color = guide_legend(title=NULL)) +
+  theme(legend.position = c(0.18,0.89)) +
+  labs(x = expression(widehat(rho)))
+```
+
+<img src="pictures/res-sim4-corr-all-1.png" width="50%" />
 
 # References
