@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "09 October, 2023"
+date: "10 October, 2023"
 output:
   html_document:
     keep_md: true
@@ -2062,10 +2062,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 35.6 seconds.
+## Chain 1 finished in 74.5 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 36.1 seconds.
+## Chain 2 finished in 76.0 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2076,13 +2076,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 32.0 seconds.
+## Chain 4 finished in 129.9 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 33.7 seconds.
+## Chain 3 finished in 134.2 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 34.3 seconds.
-## Total execution time: 69.6 seconds.
+## Mean chain execution time: 103.6 seconds.
+## Total execution time: 209.0 seconds.
 ```
 
 ```r
@@ -2090,7 +2090,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-1-817ec2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-2-817ec2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-3-817ec2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-4-817ec2.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpzoAqI4/gmm_partition_wvar_corr-202310101308-1-8166cb.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpzoAqI4/gmm_partition_wvar_corr-202310101308-2-8166cb.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpzoAqI4/gmm_partition_wvar_corr-202310101308-3-8166cb.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpzoAqI4/gmm_partition_wvar_corr-202310101308-4-8166cb.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2110,7 +2110,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-1-817ec2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-2-817ec2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-3-817ec2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpS136d1/gmm_partition_wvar_corr-202310091243-4-817ec2.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpzoAqI4/gmm_partition_wvar_corr-202310101308-1-8166cb.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpzoAqI4/gmm_partition_wvar_corr-202310101308-2-8166cb.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpzoAqI4/gmm_partition_wvar_corr-202310101308-3-8166cb.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpzoAqI4/gmm_partition_wvar_corr-202310101308-4-8166cb.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -2800,6 +2800,30 @@ patchwork::wrap_plots(p1 + theme(legend.position = 'none'),p2,p3,ggpubr::as_ggpl
 
 <img src="pictures/res-sim2-hs-all-plots-1.png" width="100%" />
 
+
+```r
+df1 <- data.frame(res_coeffs) %>% set_names(names_coeffs)
+df1$model <- 'lmer'
+
+df2 <- data.frame(res_coeffs_stan2) %>% set_names(names_coeffs)
+df2$model <- 'stan'
+
+df <- data.frame(name = names_coeffs,
+                true = coeffs)
+
+rbind(df1 %>% pivot_longer(!model),
+      df2 %>% pivot_longer(!model)) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model), linewidth = 1.5, key_glyph = draw_key_path) +
+  facet_wrap(vars(name), scales = "free") +
+  geom_vline(aes(xintercept = true), data = df, linewidth = 1.5) +
+  guides(color = guide_legend(title = NULL)) +
+  labs(x = '') +
+  theme(legend.position = c(0.8,0.2))
+```
+
+<img src="pictures/res-sim2-hs-all-plots-coeffs-1.png" width="100%" />
+
 ## $V_{S30}$-Scaling from Site Terms
 
 Here, we show results of estimating the coefficient for the $V_{S30}$-scaling from the full model, site terms, and a mixed-effects regression of total residuals.
@@ -2885,5 +2909,82 @@ df_res_cor %>% pivot_longer(c(cor_sim, cor_lme, cor_mean)) %>%
 ```
 
 <img src="pictures/res-sim4-corr-all-1.png" width="50%" />
+
+
+## Spatial Correlations of Site Terms
+
+
+```r
+seed <- 1701
+load(file = file.path('./Git/MixedModels_Biases/', 'results', sprintf('res_spatial_ita18_italy_seed%d.Rdata', seed)))
+load(file = file.path('./Git/MixedModels_Biases/', 'results', sprintf('res_spatial_ita18b_italy_seed%d.Rdata', seed)))
+
+
+range <- 30
+wvar <- 0.65
+tau_sim <- 0.17
+phi_s2s_sim <- 0.23
+phi_s2s_0 <- sqrt((1 - wvar) * phi_s2s_sim^2)
+phi_s2s_c <- sqrt(wvar * phi_s2s_sim^2)
+phi_ss_sim <- 0.2
+
+p1 <- data.frame(res_spatial[,c(4,7)],res_spatial_tot[,4]) %>% set_names('m1','m3','m2') %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(aes(xintercept = range), linewidth = lw) +
+  labs(x = 'spatial range (km)') +
+  theme(legend.position = c(0.85,0.85)) +
+  guides(color = guide_legend(title=NULL)) +
+  scale_color_manual(values = c('blue','red','orange'),
+                     labels = c('full',
+                                TeX("$\\widehat{\\delta R}$"),
+                                TeX("$\\widehat{\\delta S}$")))
+
+p2 <- data.frame(m1 = res_spatial[,5]^2 / (1/res_spatial[,3] + res_spatial[,5]^2),
+                 m1 = res_spatial_tot[,5]^2 / (1/res_spatial_tot[,3] + res_spatial_tot[,5]^2),
+                 m3 = res_spatial[,8]^2 / (1/res_spatial[,6] + res_spatial[,8]^2)) %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
+  geom_vline(aes(xintercept = wvar), linewidth = 1.5) +
+  labs(x = TeX("$\\hat{\\phi}_{S2S,c}^2 / \\hat{phi}_{S2S}^2$")) +
+  theme(legend.position = 'none') +
+  guides(color = guide_legend(title=NULL)) +
+  scale_color_manual(values = c('blue','red','orange'),
+                     labels = c('full',
+                                TeX("$\\widehat{\\delta R}$"),
+                                TeX("$\\widehat{\\delta S}$")))
+
+p3 <- data.frame(res_spatial[,c(5,8)],res_spatial_tot[,5]) %>% set_names('m1','m3','m2') %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(aes(xintercept = phi_s2s_c), linewidth = lw) +
+  labs(x = TeX("$\\hat{\\phi}_{S2S,c}$")) +
+  theme(legend.position = 'none') +
+  guides(color = guide_legend(title=NULL)) +
+  scale_color_manual(values = c('blue','red','orange'),
+                     labels = c('full',
+                                TeX("$\\widehat{\\delta R}$"),
+                                TeX("$\\widehat{\\delta S}$")))
+
+p4 <- data.frame(1/sqrt(res_spatial[,c(3,6)]),1/sqrt(res_spatial_tot[,3])) %>% set_names('m1','m3','m2') %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(aes(xintercept = phi_s2s_0), linewidth = lw) +
+  labs(x = TeX("$\\hat{\\phi}_{S2S,0}$")) +
+  theme(legend.position = 'none') +
+  guides(color = guide_legend(title=NULL)) +
+  scale_color_manual(values = c('blue','red','orange'),
+                     labels = c('full',
+                                TeX("$\\widehat{\\delta R}$"),
+                                TeX("$\\widehat{\\delta S}$")))
+
+patchwork::wrap_plots(p1,p2,p3,p4, ncol = 2)
+```
+
+<img src="pictures/res-sim5-spatial-all-1.png" width="100%" />
 
 # References

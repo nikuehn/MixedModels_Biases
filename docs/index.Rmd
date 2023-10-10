@@ -1774,6 +1774,27 @@ leg <- ggpubr::get_legend(p1)
 patchwork::wrap_plots(p1 + theme(legend.position = 'none'),p2,p3,ggpubr::as_ggplot(leg), ncol = 2)
 ```
 
+``` {r res-sim2-hs-all-plots-coeffs, out.width = '100%'}
+df1 <- data.frame(res_coeffs) %>% set_names(names_coeffs)
+df1$model <- 'lmer'
+
+df2 <- data.frame(res_coeffs_stan2) %>% set_names(names_coeffs)
+df2$model <- 'stan'
+
+df <- data.frame(name = names_coeffs,
+                true = coeffs)
+
+rbind(df1 %>% pivot_longer(!model),
+      df2 %>% pivot_longer(!model)) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model), linewidth = 1.5, key_glyph = draw_key_path) +
+  facet_wrap(vars(name), scales = "free") +
+  geom_vline(aes(xintercept = true), data = df, linewidth = 1.5) +
+  guides(color = guide_legend(title = NULL)) +
+  labs(x = '') +
+  theme(legend.position = c(0.8,0.2))
+```
+
 ## $V_{S30}$-Scaling from Site Terms
 
 Here, we show results of estimating the coefficient for the $V_{S30}$-scaling from the full model, site terms, and a mixed-effects regression of total residuals.
@@ -1852,6 +1873,140 @@ df_res_cor %>% pivot_longer(c(cor_sim, cor_lme, cor_mean)) %>%
   guides(color = guide_legend(title=NULL)) +
   theme(legend.position = c(0.18,0.89)) +
   labs(x = expression(widehat(rho)))
+```
+
+
+## Spatial Correlations of Site Terms
+
+``` {r res-sim5-spatial-all, out.width = '100%'}
+seed <- 1701
+load(file = file.path('./Git/MixedModels_Biases/', 'results', sprintf('res_spatial_ita18_italy_seed%d.Rdata', seed)))
+load(file = file.path('./Git/MixedModels_Biases/', 'results', sprintf('res_spatial_ita18b_italy_seed%d.Rdata', seed)))
+
+
+range <- 30
+wvar <- 0.65
+tau_sim <- 0.17
+phi_s2s_sim <- 0.23
+phi_s2s_0 <- sqrt((1 - wvar) * phi_s2s_sim^2)
+phi_s2s_c <- sqrt(wvar * phi_s2s_sim^2)
+phi_ss_sim <- 0.2
+
+p1 <- data.frame(res_spatial[,c(4,7)],res_spatial_tot[,4]) %>% set_names('m1','m3','m2') %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(aes(xintercept = range), linewidth = lw) +
+  labs(x = 'spatial range (km)') +
+  theme(legend.position = c(0.85,0.85)) +
+  guides(color = guide_legend(title=NULL)) +
+  scale_color_manual(values = c('blue','red','orange'),
+                     labels = c('full',
+                                TeX("$\\widehat{\\delta R}$"),
+                                TeX("$\\widehat{\\delta S}$")))
+
+p2 <- data.frame(m1 = res_spatial[,5]^2 / (1/res_spatial[,3] + res_spatial[,5]^2),
+                 m1 = res_spatial_tot[,5]^2 / (1/res_spatial_tot[,3] + res_spatial_tot[,5]^2),
+                 m3 = res_spatial[,8]^2 / (1/res_spatial[,6] + res_spatial[,8]^2)) %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
+  geom_vline(aes(xintercept = wvar), linewidth = 1.5) +
+  labs(x = TeX("$\\hat{\\phi}_{S2S,c}^2 / \\hat{phi}_{S2S}^2$")) +
+  theme(legend.position = 'none') +
+  guides(color = guide_legend(title=NULL)) +
+  scale_color_manual(values = c('blue','red','orange'),
+                     labels = c('full',
+                                TeX("$\\widehat{\\delta R}$"),
+                                TeX("$\\widehat{\\delta S}$")))
+
+p3 <- data.frame(res_spatial[,c(5,8)],res_spatial_tot[,5]) %>% set_names('m1','m3','m2') %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(aes(xintercept = phi_s2s_c), linewidth = lw) +
+  labs(x = TeX("$\\hat{\\phi}_{S2S,c}$")) +
+  theme(legend.position = 'none') +
+  guides(color = guide_legend(title=NULL)) +
+  scale_color_manual(values = c('blue','red','orange'),
+                     labels = c('full',
+                                TeX("$\\widehat{\\delta R}$"),
+                                TeX("$\\widehat{\\delta S}$")))
+
+p4 <- data.frame(1/sqrt(res_spatial[,c(3,6)]),1/sqrt(res_spatial_tot[,3])) %>% set_names('m1','m3','m2') %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(aes(xintercept = phi_s2s_0), linewidth = lw) +
+  labs(x = TeX("$\\hat{\\phi}_{S2S,0}$")) +
+  theme(legend.position = 'none') +
+  guides(color = guide_legend(title=NULL)) +
+  scale_color_manual(values = c('blue','red','orange'),
+                     labels = c('full',
+                                TeX("$\\widehat{\\delta R}$"),
+                                TeX("$\\widehat{\\delta S}$")))
+
+patchwork::wrap_plots(p1,p2,p3,p4, ncol = 2)
+```
+
+## Cell-Specific Attenuation
+
+``` {r res-sim6-cell-all, out.width = '100%'}
+tau <- 0.17
+phi_s2s <- 0.2
+phi_0 <- 0.18
+sigma_cell <- 0.35
+
+seed <- 5618
+load(file = file.path('./Git/MixedModels_Biases/', 'results',
+                      sprintf('res_cell_italy_seed%d.Rdata', seed)))
+
+p1 <- data.frame(res_cell[,c(4,10,6)]) %>% set_names(c('full','dR','dWS')) %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
+  geom_vline(aes(xintercept = sigma_cell), linewidth = 1.5) +
+  labs(x = expression(paste(sigma[cell]))) +
+  theme(legend.position = c(0.5,0.85)) +
+  guides(color = guide_legend(title=NULL)) +
+  scale_color_manual(values = c('red','orange','blue'),
+                     labels = c(TeX("$\\delta R$"), TeX("$\\widehat{\\delta WS}$"), "full"))
+
+p2 <- data.frame(res_cell_fix[,c(1,7,4)]) %>% set_names(c('full','dR','dWS')) %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(aes(xintercept = coeffs_sim[6]), linewidth = lw) +
+  labs(x = expression(paste(c[attn]))) +
+  theme(legend.position = 'none') +
+  guides(color = guide_legend(title=NULL)) +
+  scale_color_manual(values = c('red','orange','blue'),
+                     labels = c(TeX("$\\delta R$"), TeX("$\\widehat{\\delta WS}$"), "full"))
+
+p3 <- data.frame(full = res_cell[,1]^2/res_cell_sdlme[,3]^2,
+                 dR = res_cell[,7]^2/res_cell_sdlme[,3]^2,
+                 dS = res_cell[,5]^2/res_cell_sdlme[,3]^2) %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = 1.5) +
+  labs(x = TeX("$\\hat{\\phi}_{SS,0}^2 / \\hat{\\phi}_{SS}^2$")) +
+  theme(legend.position = 'none') +
+  guides(color = guide_legend(title=NULL)) +
+  scale_color_manual(values = c('red','orange','blue'),
+                     labels = c(TeX("$\\delta R$"), TeX("$\\widehat{\\delta WS}$"), "full"))
+
+p4 <- data.frame(res_cell_cor[,c(4,6,5)]) %>%
+  set_names(c('full','dR','dWS')) %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = 1.5) +
+  labs(x = expression(paste(rho,'(c'[true],',c'[est],')'))) +
+  theme(legend.position = 'none') +
+  guides(color = guide_legend(title=NULL)) +
+  scale_color_manual(values = c('red','orange','blue'),
+                     labels = c(TeX("$\\delta R$"), TeX("$\\widehat{\\delta WS}$"), "full"))
+
+patchwork::wrap_plots(p1,p2,p3,p4, ncol = 2)
 ```
 
 # References
