@@ -1956,10 +1956,12 @@ tau <- 0.17
 phi_s2s <- 0.2
 phi_0 <- 0.18
 sigma_cell <- 0.35
+coeffs <- c(3.421046409, 0.193954090, -0.021982777, 0.287149291, -1.405635476,
+            -0.002911264, 0.085983743, 0.010500239, -0.394575970)
 
 seed <- 5618
 load(file = file.path('./Git/MixedModels_Biases/', 'results',
-                      sprintf('res_cell_italy_seed%d.Rdata', seed)))
+                      sprintf('res_cell_italy_ita18_seed%d.Rdata', seed)))
 
 p1 <- data.frame(res_cell[,c(4,10,6)]) %>% set_names(c('full','dR','dWS')) %>%
   pivot_longer(everything()) %>%
@@ -1976,7 +1978,7 @@ p2 <- data.frame(res_cell_fix[,c(1,7,4)]) %>% set_names(c('full','dR','dWS')) %>
   pivot_longer(everything()) %>%
   ggplot() +
   geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
-  geom_vline(aes(xintercept = coeffs_sim[6]), linewidth = lw) +
+  geom_vline(aes(xintercept = coeffs[6]), linewidth = lw) +
   labs(x = expression(paste(c[attn]))) +
   theme(legend.position = 'none') +
   guides(color = guide_legend(title=NULL)) +
