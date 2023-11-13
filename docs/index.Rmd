@@ -1047,7 +1047,7 @@ fit_sim <- lmer(y_sim ~ M1 + M2 + MlogR + logR + R + logVS + (1|eq) + (1|stat), 
 summary(fit_sim)
 ```
 
-Now, we fit the model with the `logVS` term, and then use linear regression on the estimated station term to estiamte the coefficient.
+Now, we fit the model without the `logVS` term, and then use linear regression on the estimated station term to estiamte the coefficient.
 To account for stations with few recordings, we also use only estmated site terms from staions with at least 10 records.
 We also fit linear mixed effects model on the total residuals.
 
@@ -1084,30 +1084,69 @@ As we can see, the $V_{S30}$-scaling coefficient estimated from site terms $\del
 The bias persists even if only stations with 10 or more recordings are used.
 A mixed-effects model on the total residuals works well to estimate the coefficient.
 
+Below we look at the estimated standard deviations.
+The full fit and fit from total residuals estimate $\phi_{S2S}$ well, while the values estimated using linear regression are biased low (using well recorded stations reduces the bias).
+
+``` {r sim3-vs-sigma}
+df <- data.frame(model = c('true', 'sample','full', 'dS','dS(N>=10)','dR'),
+  phi_s2s = c(phi_s2s_sim, sd(dS_sim),as.data.frame(VarCorr(fit_sim))$sdcor[1],
+  sigma(fit_sim2a), sigma(fit_sim3a), as.data.frame(VarCorr(fit_sim4))$sdcor[1]))
+
+knitr::kable(df, digits = 5, row.names = TRUE,
+             caption = "Phi_S2S")
+```
+
 ## Correlations between Random Effects
 
 Here, we briefly show that estimating correlations between random effects/residuals can be well estimated from point estimates.
-We simulate correlated terms from a bivariate normal distribution, perform a linear mixed-effects regression on each target variable separael, and then calcualte the correlation.
-The correlation coefficient is
+We simulate correlated terms from a bivariate normal distribution, perform a linear mixed-effects regression on each target variable separately, and then calculate the correlation.
+
+The correlation coefficient is calculated as
 $$
 \rho(X,Y) = \frac{cov(X,Y)}{\sigma_X \sigma_Y}
 $$
-We compare calculating $\rho$ using the standard deviations of the point estimates in the denominator, as well as the ML estimate from `lmer`.
+In general, in GMM modeling we are interested in the correlations of the different terms in the model (event terms, site terms, wthin-event/within-site residuals), which means we can only calculate the sample covariance of the estimates of these terms.
+For the standard deviations, however, we can either use the sample standard deviations of the point estimates (which neglects uncertainty), or use the (RE)ML estimate (which takes uncertainty in the random effects/residuals into account).
+We compare calculating $\rho$ using the standard deviations of the point estimates in the denominator (whch iswhatis done by usig function `cor`), as well as the ML estimate from `lmer`.
 The correlations are well estimated by using point estimates, but are underestimated when using the (RE)ML value in the denominator.
+The reason is that the sample covariance of the point estimates underestimates the true covariance.
+
+Next tothe individual correlations of the random effects and residual, we are also interested in the total correlations, which are calculated as
+\begin{equation}
+  \rho_{IM1,IM2} = \frac{\rho_{\delta B_1, \delta B_2} \tau_1 \tau_2 + \rho_{\delta S_1, \delta S_2} \phi_{S2S,1} \phi_{S2S,2} + \rho_{\delta W_1, \delta W_2} \phi_{SS,1} \phi_{SS,2}}{\sigma_{1}\sigma_2} \label{eq: corr total}
+\end{equation}
+where $IM1$ and $IM2$ are different ground-motion intensity measures.
+There are again different possible choices for the use of the standard deviations.
+We calculate the total correlation usng the best estimate (REML), the sample standard deviation, and also as the correlation of total residuals.
 
 
 ``` {r sim2-corr}
-tau_sim <- 0.4
-phi_s2s_sim <- 0.43
-phi_ss_sim <- 0.5
+tau_sim1 <- 0.4
+phi_s2s_sim1 <- 0.43
+phi_ss_sim1 <- 0.5
 
-rho <- 0.9
-cov_tau <- matrix(c(tau_sim^2, rho * tau_sim * tau_sim,
-                    rho * tau_sim * tau_sim, tau_sim^2), ncol = 2)
-cov_s2s <- matrix(c(phi_s2s_sim^2, rho * phi_s2s_sim * phi_s2s_sim,
-                    rho * phi_s2s_sim * phi_s2s_sim, phi_s2s_sim^2), ncol = 2)
-cov_ss <- matrix(c(phi_ss_sim^2, rho * phi_ss_sim * phi_ss_sim,
-                    rho * phi_ss_sim * phi_ss_sim, phi_ss_sim^2), ncol = 2)
+tau_sim2 <- 0.45
+phi_s2s_sim2 <- 0.4
+phi_ss_sim2 <- 0.55
+
+rho_tau <- 0.95
+rho_ss <- 0.9
+rho_s2s <- 0.85
+
+sigma_tot1 <- sqrt(tau_sim1^2 + phi_s2s_sim1^2 + phi_ss_sim1^2)
+sigma_tot2 <- sqrt(tau_sim2^2 + phi_s2s_sim2^2 + phi_ss_sim2^2)
+
+rho_total <- (rho_tau * tau_sim1 * tau_sim2 + 
+                rho_s2s * phi_s2s_sim1 * phi_s2s_sim2 + 
+                rho_ss * phi_ss_sim1 * phi_ss_sim2) / 
+  (sigma_tot1 * sigma_tot2)
+
+cov_tau <- matrix(c(tau_sim1^2, rho_tau * tau_sim1 * tau_sim2,
+                    rho_tau * tau_sim1 * tau_sim2, tau_sim2^2), ncol = 2)
+cov_s2s <- matrix(c(phi_s2s_sim1^2, rho_s2s * phi_s2s_sim1 * phi_s2s_sim2,
+                    rho_s2s * phi_s2s_sim1 * phi_s2s_sim2, phi_s2s_sim2^2), ncol = 2)
+cov_ss <- matrix(c(phi_ss_sim1^2, rho_ss * phi_ss_sim1 * phi_ss_sim2,
+                   rho_ss * phi_ss_sim1 * phi_ss_sim2, phi_ss_sim2^2), ncol = 2)
 
 eqt2 <- mvtnorm::rmvnorm(n_eq, sigma = cov_tau)
 statt2 <- mvtnorm::rmvnorm(n_stat, sigma = cov_s2s)
@@ -1121,19 +1160,34 @@ fit_sim2 <- lmer(y_sim2 ~ (1 | eq) + (1 | stat), data_reg)
 
 dB1 <- ranef(fit_sim1)$eq$`(Intercept)`
 dS1 <- ranef(fit_sim1)$stat$`(Intercept)`
-dWS1 <-data_reg$y_sim1 - predict(fit_sim1)
+dWS1 <- resid(fit_sim1)
+dR1 <- data_reg$y_sim1 - predict(fit_sim1, re.form=NA)
 
 dB2 <- ranef(fit_sim2)$eq$`(Intercept)`
 dS2 <- ranef(fit_sim2)$stat$`(Intercept)`
-dWS2 <-data_reg$y_sim2 - predict(fit_sim2)
+dWS2 <- resid(fit_sim2)
+dR2 <- data_reg$y_sim2 - predict(fit_sim2, re.form=NA)
 
 sds1 <- as.data.frame(VarCorr(fit_sim1))$sdcor
 sds2 <- as.data.frame(VarCorr(fit_sim2))$sdcor
 
+sds1a <- c(sd(dS1), sd(dB1), sd(dWS1))
+sds2a <- c(sd(dS2), sd(dB2), sd(dWS2))
 
-df <- data.frame(dS = c(rho, cor(dS1,dS2), cov(dS1,dS2)/(sd(dS1) * sd(dS2)), cov(dS1,dS2)/(sds1[1] * sds2[1])),
-           dB = c(rho, cor(dB1,dB2), cov(dB1,dB2)/(sd(dB1) * sd(dB2)), cov(dB1,dB2)/(sds1[2] * sds2[2])),
-           dWS = c(rho, cor(dWS1,dWS2), cov(dWS1,dWS2)/(sd(dWS1) * sd(dWS2)), cov(dWS1,dWS2)/(sds1[3] * sds2[3])),
+rho_t <- (sds1[1] * sds2[1] * cor(dS1, dS2) +
+            sds1[2] * sds2[2] * cor(dB1, dB2) +
+            sds1[3] * sds2[3] * cor(dWS1, dWS2)) /
+  (sqrt(sum(sds1^2)) * sqrt(sum(sds2^2)))
+
+rho_ta <- (sds1a[1] * sds2a[1] * cor(dS1, dS2) +
+             sds1a[2] * sds2a[2] * cor(dB1, dB2) +
+             sds1a[3] * sds2a[3] * cor(dWS1, dWS2)) /
+  (sqrt(sum(sds1a^2)) * sqrt(sum(sds2a^2)))
+
+df <- data.frame(dS = c(rho_s2s, cor(dS1,dS2), cov(dS1,dS2)/(sd(dS1) * sd(dS2)), cov(dS1,dS2)/(sds1[1] * sds2[1])),
+           dB = c(rho_tau, cor(dB1,dB2), cov(dB1,dB2)/(sd(dB1) * sd(dB2)), cov(dB1,dB2)/(sds1[2] * sds2[2])),
+           dWS = c(rho_ss, cor(dWS1,dWS2), cov(dWS1,dWS2)/(sd(dWS1) * sd(dWS2)), cov(dWS1,dWS2)/(sds1[3] * sds2[3])),
+           dR = c(rho_total, cor(dR1, dR2), rho_t, rho_ta),
            row.names = c('true','cor','cov/sd(point estimate)','cov()/hat()'))
 knitr::kable(df, digits = 3, row.names = TRUE,
              caption = "Estimated correlation coefficients.")
@@ -1849,7 +1903,146 @@ p2 <- ggplot(df) +
 patchwork::wrap_plots(p1, p2)
 ```
 
-## Correlations
+## Correlations of Random Effects
+
+``` {r res-sim6-corrre-high, out.width = '100%'}
+load(file.path('./Git/MixedModels_Biases/', 'results',
+                                        'res_corrre_CB14_high.Rdata'))
+
+patchwork::wrap_plots(
+  data.frame(mat_cor[,c(1,6)]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(data.frame(x = mat_cor_sample[,1]),
+                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_s2s, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta S_1, \\delta S_2)$')) +
+    scale_color_manual(values = c('red','blue'),
+                       labels = c(TeX('$\\rho_{sample}$'),
+                                  TeX('$cov_{sample}/(\\hat{\\sigma}_{1} \\; \\hat{\\sigma}_{2})$'))) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = c(0.4,0.8),
+          legend.key.width = unit(2,'cm')) +
+    #lims(x = c(0.25,0.6)),
+    lims(x = c(0.45,0.95)),
+  
+  data.frame(mat_cor[,c(2,7)]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(data.frame(x = mat_cor_sample[,2]),
+                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_tau, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta B_1, \\delta B_2)$')) +
+    scale_color_manual(values = c('red','blue'),
+                       labels = c(TeX('$\\rho_{sample}$'),'re2')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(2,'cm')) +
+    #lims(x = c(0.3,0.6)),
+    lims(x = c(0.8,1.0)),
+  
+  data.frame(mat_cor[,c(3,8)]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(data.frame(x = mat_cor_sample[,3]),
+                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_ss, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta WS_1, \\delta WS_2)$')) +
+    scale_color_manual(values = c('red','blue'),
+                       labels = c('re','re2')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(2,'cm')) +
+    #lims(x = c(0.4,0.55)),
+    lims(x = c(0.8,0.95)),
+  
+  data.frame(mat_cor[,c(4,5,9)]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_total, linewidth = lw) +
+    labs(x = TeX('$\\rho_{total}$')) +
+    scale_color_manual(values = c('red','blue','cyan'),
+                       labels = c("(1)","(2)",'(3)')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = c(0.2,0.8),
+          legend.key.width = unit(2,'cm')) +
+    #lims(x = c(0.45,0.55))
+    lims(x = c(0.875,0.925))
+)
+```
+
+
+``` {r res-sim6-corrre-low, out.width = '100%'}
+load(file.path('./Git/MixedModels_Biases/', 'results',
+                                        'res_corrre_CB14_low.Rdata'))
+
+patchwork::wrap_plots(
+  data.frame(mat_cor[,c(1,6)]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(data.frame(x = mat_cor_sample[,1]),
+                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_s2s, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta S_1, \\delta S_2)$')) +
+    scale_color_manual(values = c('red','blue'),
+                       labels = c(TeX('$\\rho_{sample}$'),
+                                  TeX('$cov_{sample}/(\\hat{\\sigma}_{1} \\; \\hat{\\sigma}_{2})$'))) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = c(0.4,0.8),
+          legend.key.width = unit(2,'cm')) +
+    lims(x = c(0.25,0.6)),
+  
+  data.frame(mat_cor[,c(2,7)]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(data.frame(x = mat_cor_sample[,2]),
+                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_tau, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta B_1, \\delta B_2)$')) +
+    scale_color_manual(values = c('red','blue'),
+                       labels = c(TeX('$\\rho_{sample}$'),'re2')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(2,'cm')) +
+    lims(x = c(0.3,0.6)),
+  
+  data.frame(mat_cor[,c(3,8)]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(data.frame(x = mat_cor_sample[,3]),
+                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_ss, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta WS_1, \\delta WS_2)$')) +
+    scale_color_manual(values = c('red','blue'),
+                       labels = c('re','re2')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(2,'cm')) +
+    lims(x = c(0.4,0.55)),
+  
+  data.frame(mat_cor[,c(4,5,9)]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_total, linewidth = lw) +
+    labs(x = TeX('$\\rho_{total}$')) +
+    scale_color_manual(values = c('red','blue','cyan'),
+                       labels = c("(1)","(2)",'(3)')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = c(0.2,0.8),
+          legend.key.width = unit(2,'cm')) +
+    lims(x = c(0.45,0.55))
+)
+```
+
+## Correlations with Stress Drop
 
 ``` {r res-sim4-corr-all}
 # Results for simulations based on CB14 data
