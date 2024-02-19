@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "13 November, 2023"
+date: "19 February, 2024"
 output:
   html_document:
     keep_md: true
@@ -1932,6 +1932,168 @@ Table: Phi_S2S
 |5  |dS(N>=10) | 0.22793|
 |6  |dR        | 0.23493|
 
+## Two-Step Regression
+
+In the simulations, we consder two random effects: event terms $\delta B$ and site terms $\delta S$.
+So far, we have estimated the random effects and their associated standard deviations in one single step (`lmer` allows to fit crossed random effects, the Bayesian methods as well).
+Traditionally, in GMM development often the algorithm of @Abrahamson1992 is used, which does not work for crossed random effects (Similarly, package `nlme` does not work for crossed random effects).
+In this case, one ofen first runs a egresson wh only event terms, and then a second regression which partitions the between-event residuals from the first regression into $\delta S$ and $\delta WS$.
+In the following, we investigate the differences.
+Again, we randomly sample even terms, site terms, and within-event/within-site residuals, and then fit regression models using `lmer`.
+We repeat this process several times, and record the estimated values of coefficients and standard deviations, as well as the confidence intervals.
+
+
+```r
+tau_sim <- 0.17
+phi_s2s_sim <- 0.23
+phi_ss_sim <- 0.2
+sds_sim <- c(phi_s2s_sim, tau_sim, phi_ss_sim)
+
+n_sam <- 100
+mat_fix <- matrix(ncol = length(coeffs), nrow = n_sam)
+mat_fix2 <- matrix(ncol = length(coeffs), nrow = n_sam)
+mat_ci <- matrix(nrow = n_sam, ncol = length(coeffs))
+mat_ci2 <- matrix(nrow = n_sam, ncol = length(coeffs))
+mat_ci_sd <- matrix(nrow = n_sam, ncol = 3)
+mat_ci_sd2 <- matrix(nrow = n_sam, ncol = 3)
+mat_sd <- matrix(nrow = n_sam, ncol = 3)
+mat_sd2 <- matrix(nrow = n_sam, ncol = 3)
+set.seed(8472)
+for(i in 1:n_sam) {
+  dWS_sim <- rnorm(n_rec, sd = phi_ss_sim)
+  dS_sim <- rnorm(n_stat, sd = phi_s2s_sim)
+  dB_sim <- rnorm(n_eq, sd = tau_sim)
+  
+  data_reg$y_sim <- as.matrix(data_reg[,names_coeffs]) %*% coeffs + dB_sim[eq] + dS_sim[stat] + dWS_sim
+  fit_sim <- lmer(y_sim ~ M1 + M2 + MlogR + logR + R + logVS  + (1|eq) + (1|stat), data_reg)
+  fit_sim2 <- lmer(y_sim ~ M1 + M2 + MlogR + logR + R + logVS  + (1|eq), data_reg)
+  
+  ci_sim <- confint(fit_sim, level = 0.9)
+  ci_sim2 <- confint(fit_sim2, level = 0.9)
+  
+  for(k in 1:length(coeffs)) {mat_ci[i,k] <- sum(coeffs[k] > ci_sim[k+3,1] & coeffs[k] <= ci_sim[k+3,2])}
+  for(k in 1:length(coeffs)) {mat_ci2[i,k] <- sum(coeffs[k] > ci_sim2[k+2,1] & coeffs[k] <= ci_sim2[k+2,2])}
+  
+  for(k in 1:length(sds_sim)) {mat_ci_sd[i,k] <- sum(sds_sim[k] > ci_sim[k,1] & sds_sim[k] <= ci_sim[k,2])}
+  
+  mat_fix[i,] <- fixef(fit_sim)
+  mat_fix2[i,] <- fixef(fit_sim2)
+  
+  mat_sd[i,] <- as.data.frame(VarCorr(fit_sim))$sdcor
+  
+  data_reg$dR2 <- resid(fit_sim2)
+  fit_sim2a <- lmer(dR2 ~ (1 | stat), data_reg)
+  tmp <- as.data.frame(VarCorr(fit_sim2a))$sdcor
+  mat_sd2[i,] <- c(tmp[1], as.data.frame(VarCorr(fit_sim2))$sdcor[1], tmp[2])
+  ci_sim2a <- confint(fit_sim2a, level = 0.9)
+  
+  mat_ci_sd2[,] <- c(sum(phi_s2s_sim > ci_sim2a[1,1] & phi_s2s_sim <= ci_sim2a[1,2]),
+                     sum(tau_sim > ci_sim2[1,1] & tau_sim <= ci_sim2[1,2]),
+                     sum(phi_ss_sim > ci_sim2a[2,1] & phi_ss_sim <= ci_sim2a[2,2]))
+}
+```
+
+Below we plot the desities of the estimated coefficients for the repeated simulations, for both the one-sep and two-step runs.
+Overall, on average we can recover the coefficients using both methods reasonably well, but the two-step procedure leads to somewhat wider ranges of the estimated coefficients.
+
+
+```r
+df1 <- data.frame(mat_fix) %>% set_names(names_coeffs)
+df1$model <- '1-step'
+
+df2 <- data.frame(mat_fix2) %>% set_names(names_coeffs)
+df2$model <- '2-step'
+
+df <- data.frame(name = names_coeffs,
+                 true = coeffs)
+
+rbind(df1 %>% pivot_longer(!model),
+      df2 %>% pivot_longer(!model)) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model), linewidth = 1.5, key_glyph = draw_key_path) +
+  facet_wrap(vars(name), scales = "free") +
+  geom_vline(aes(xintercept = true), data = df, linewidth = 1.5) +
+  guides(color = guide_legend(title = NULL)) +
+  labs(x = '') +
+  theme(legend.position = c(0.8,0.2),
+        strip.text = element_text(size = 20))
+```
+
+<img src="pictures/sim-two-step-results-fixef-1.png" width="100%" />
+
+Generally, it is important to not only o have a good estimate of how well the coefficients are estimated, but also how well we ca quantify uncertainty.
+Epistemc uncertainty associated with predctions is very important in PSHA.
+We now look how often the true coefficient lies inside the 90% confidence interval.
+For the one-step regression, the estimates are well calibrated (true coefficient values are inside the 90% confidence interval roughly 90% of the time), while they are not for the two-step procedure.
+
+
+```r
+data.frame(rbind(colSums(mat_ci)/n_sam,
+                 colSums(mat_ci2)/n_sam),
+           row.names = c('one-step','two-step')) %>%
+  set_names(names_coeffs) %>%
+  knitr::kable(digits = 5, row.names = TRUE,
+               caption = "Fraction how many times the estimated coefficient is inside the 90% confidence interval.")
+```
+
+
+
+Table: Fraction how many times the estimated coefficient is inside the 90% confidence interval.
+
+|         | intercept|   M1|   M2| MlogR| logR|    R| logVS|
+|:--------|---------:|----:|----:|-----:|----:|----:|-----:|
+|one-step |      0.91| 0.92| 0.88|  0.93| 0.91| 0.89|  0.86|
+|two-step |      0.71| 0.87| 0.90|  0.79| 0.66| 0.57|  0.28|
+
+Below, we plot the densities of the estimated standard deviations, with similar results and conclusions as for the coefficients.
+
+
+```r
+names_sds <- c('phi_s2s','tau','phi_ss')
+df1 <- data.frame(mat_sd) %>% set_names(names_sds)
+df1$model <- '1-step'
+
+df2 <- data.frame(mat_sd2) %>% set_names(names_sds)
+df2$model <- '2-step'
+
+df <- data.frame(name = names_sds,
+                 true = sds_sim)
+
+rbind(df1 %>% pivot_longer(!model),
+      df2 %>% pivot_longer(!model)) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model), linewidth = 1.5, key_glyph = draw_key_path) +
+  facet_wrap(vars(name), scales = "free") +
+  geom_vline(aes(xintercept = true), data = df, linewidth = 1.5) +
+  guides(color = guide_legend(title = NULL)) +
+  labs(x = '') +
+  theme(legend.position = c(0.8,0.2),
+        strip.text = element_text(size = 20))
+```
+
+<img src="pictures/sim-two-step-results-sd-1.png" width="100%" />
+
+For the confidence intervals of the standard deviations, again the two-step procedure s not well calibrated.
+
+
+```r
+data.frame(rbind(colSums(mat_ci_sd)/n_sam,
+                 colSums(mat_ci_sd2)/n_sam),
+           row.names = c('one-step','two-step')) %>%
+  set_names(names_sds) %>%
+  knitr::kable(digits = 5, row.names = TRUE,
+               caption = "Fraction how many times the estimated standard deviation is inside the 90% confidence interval.")
+```
+
+
+
+Table: Fraction how many times the estimated standard deviation is inside the 90% confidence interval.
+
+|         | phi_s2s|  tau| phi_ss|
+|:--------|-------:|----:|------:|
+|one-step |    0.94| 0.83|   0.86|
+|two-step |    0.66| 0.67|   0.67|
+
 ## Correlations between Random Effects
 
 Here, we briefly show that estimating correlations between random effects/residuals can be well estimated from point estimates.
@@ -1947,7 +2109,7 @@ We compare calculating $\rho$ using the standard deviations of the point estimat
 The correlations are well estimated by using point estimates, but are underestimated when using the (RE)ML value in the denominator.
 The reason is that the sample covariance of the point estimates underestimates the true covariance.
 
-Next tothe individual correlations of the random effects and residual, we are also interested in the total correlations, which are calculated as
+Next to the individual correlations of the random effects and residual, we are also interested in the total correlations, which are calculated as
 \begin{equation}
   \rho_{IM1,IM2} = \frac{\rho_{\delta B_1, \delta B_2} \tau_1 \tau_2 + \rho_{\delta S_1, \delta S_2} \phi_{S2S,1} \phi_{S2S,2} + \rho_{\delta W_1, \delta W_2} \phi_{SS,1} \phi_{SS,2}}{\sigma_{1}\sigma_2} \label{eq: corr total}
 \end{equation}
@@ -2037,9 +2199,9 @@ Table: Estimated correlation coefficients.
 |                       |    dS|    dB|   dWS|    dR|
 |:----------------------|-----:|-----:|-----:|-----:|
 |true                   | 0.850| 0.950| 0.900| 0.898|
-|cor                    | 0.873| 0.956| 0.896| 0.903|
-|cov/sd(point estimate) | 0.873| 0.956| 0.896| 0.903|
-|cov()/hat()            | 0.553| 0.850| 0.809| 0.905|
+|cor                    | 0.863| 0.952| 0.898| 0.905|
+|cov/sd(point estimate) | 0.863| 0.952| 0.898| 0.904|
+|cov()/hat()            | 0.518| 0.853| 0.815| 0.907|
 
 ## Correlation with e.g. Stress Drop
 
@@ -2130,10 +2292,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 50.9 seconds.
+## Chain 1 finished in 36.3 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 51.6 seconds.
+## Chain 2 finished in 36.6 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2144,13 +2306,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 41.5 seconds.
+## Chain 4 finished in 33.2 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 43.7 seconds.
+## Chain 3 finished in 35.0 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 46.9 seconds.
-## Total execution time: 94.9 seconds.
+## Mean chain execution time: 35.3 seconds.
+## Total execution time: 71.6 seconds.
 ```
 
 ```r
@@ -2158,7 +2320,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpZpwmDa/gmm_partition_wvar_corr-202311131426-1-815d24.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpZpwmDa/gmm_partition_wvar_corr-202311131426-2-815d24.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpZpwmDa/gmm_partition_wvar_corr-202311131426-3-815d24.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpZpwmDa/gmm_partition_wvar_corr-202311131426-4-815d24.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpXLQwJW/gmm_partition_wvar_corr-202402191530-1-80e749.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpXLQwJW/gmm_partition_wvar_corr-202402191530-2-80e749.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpXLQwJW/gmm_partition_wvar_corr-202402191530-3-80e749.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpXLQwJW/gmm_partition_wvar_corr-202402191530-4-80e749.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2178,7 +2340,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpZpwmDa/gmm_partition_wvar_corr-202311131426-1-815d24.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpZpwmDa/gmm_partition_wvar_corr-202311131426-2-815d24.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpZpwmDa/gmm_partition_wvar_corr-202311131426-3-815d24.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpZpwmDa/gmm_partition_wvar_corr-202311131426-4-815d24.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpXLQwJW/gmm_partition_wvar_corr-202402191530-1-80e749.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpXLQwJW/gmm_partition_wvar_corr-202402191530-2-80e749.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpXLQwJW/gmm_partition_wvar_corr-202402191530-3-80e749.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpXLQwJW/gmm_partition_wvar_corr-202402191530-4-80e749.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -2212,7 +2374,7 @@ summarise_draws(subset(draws_corr, variable = c('rho', 'phi', 'tau'), regex = TR
 ```
 ## # A tibble: 5 × 10
 ##   variable  mean median      sd     mad    q5   q95  rhat ess_bulk ess_tail
-##   <chr>    <num>  <num>   <num>   <num> <num> <num> <num>    <num>    <num>
+##   <chr>    <dbl>  <dbl>   <dbl>   <dbl> <dbl> <dbl> <dbl>    <dbl>    <dbl>
 ## 1 rho      0.686  0.687 0.0325  0.0323  0.629 0.736  1.00     872.     717.
 ## 2 phi_ss   0.497  0.497 0.00335 0.00331 0.492 0.503  1.01     649.     528.
 ## 3 phi_s2s  0.441  0.441 0.0115  0.0119  0.422 0.459  1.00     568.     684.
@@ -2333,7 +2495,7 @@ prior_prec_phiSS    <- list(prec = list(prior = 'pc.prec', param = c(0.3, 0.01))
 ## Spatial correlations of Site Terms
 
 In nonergodic models, site terms are often modeled as spatially correlated.
-The spatial correlaion structure can be assessed from point estimates of the site terms.
+The spatial correlation structure can be assessed from point estimates of the site terms.
 Here, we simulate some data with spatially correlated site terms, to check whether we can get the model parameters back.
 
 We use the Mat\'ern covariance function for the spatial correlation of the site terms, which is defined below.
@@ -2887,7 +3049,8 @@ rbind(df1 %>% pivot_longer(!model),
   geom_vline(aes(xintercept = true), data = df, linewidth = 1.5) +
   guides(color = guide_legend(title = NULL)) +
   labs(x = '') +
-  theme(legend.position = c(0.8,0.2))
+  theme(legend.position = c(0.8,0.2),
+        strip.text = element_text(size = 20))
 ```
 
 <img src="pictures/res-sim2-hs-all-plots-coeffs-1.png" width="100%" />
