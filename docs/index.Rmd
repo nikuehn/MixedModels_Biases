@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "`r format(Sys.time(), '%d %B, %Y')`"
+date: "`r format(Sys.time(), '%d %B, %Y')` "
 output:
   html_document:
     keep_md: true
@@ -1150,7 +1150,7 @@ for(i in 1:n_sam) {
   mat_sd2[i,] <- c(tmp[1], as.data.frame(VarCorr(fit_sim2))$sdcor[1], tmp[2])
   ci_sim2a <- confint(fit_sim2a, level = 0.9)
   
-  mat_ci_sd2[,] <- c(sum(phi_s2s_sim > ci_sim2a[1,1] & phi_s2s_sim <= ci_sim2a[1,2]),
+  mat_ci_sd2[i,] <- c(sum(phi_s2s_sim > ci_sim2a[1,1] & phi_s2s_sim <= ci_sim2a[1,2]),
                      sum(tau_sim > ci_sim2[1,1] & tau_sim <= ci_sim2[1,2]),
                      sum(phi_ss_sim > ci_sim2a[2,1] & phi_ss_sim <= ci_sim2a[2,2]))
 }
