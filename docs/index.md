@@ -1944,46 +1944,6 @@ We repeat this process several times, and record the estimated values of coeffic
 
 
 ```r
-print(coeffs)
-```
-
-```
-## [1]  3.421046409  0.193954090 -0.021982777  0.287149291 -1.405635476
-## [6] -0.002911264 -0.394575970
-```
-
-```r
-print(names_coeffs)
-```
-
-```
-## [1] "intercept" "M1"        "M2"        "MlogR"     "logR"      "R"        
-## [7] "logVS"
-```
-
-```r
-print(head(data_reg))
-```
-
-```
-##   intercept eqid statid    M     VS   Rrup    Rjb eq stat M_stat VS_gmean
-## 1         1    7    133 6.60 219.31  91.22  91.15  1    1  6.600   219.31
-## 2         1   12    326 7.36 316.46 117.75 114.62  2    2  6.656   316.46
-## 3         1   25    131 6.19 408.93  17.64  17.64  3    3  6.190   408.93
-## 4         1   25    127 6.19 289.56   9.58   9.58  3    4  6.190   289.56
-## 5         1   25    129 6.19 256.82  12.90  12.90  3    5  6.190   256.82
-## 6         1   25    162 6.19 527.92  15.96  15.96  3    6  6.190   527.92
-##       y_sim M1   M2     MlogR     logR         R      logVS deltaR_lmer2
-## 1 0.6558012  0 1.10 2.5022438 1.961006  91.41260 -0.5620316   -0.5661552
-## 2 1.3349912  0 1.86 4.1942646 2.060051 114.82894 -0.4027712   -0.1024394
-## 3 1.7130435  0 0.69 1.1064142 1.277615  18.95023 -0.2914410   -0.3119060
-## 4 3.1068551  0 0.69 0.9288945 1.072626  11.82024 -0.4413514    0.8252817
-## 5 2.5284153  0 0.69 1.0093780 1.165564  14.64076 -0.4934611    0.3619694
-## 6 1.8282629  0 0.69 1.0742556 1.240480  17.39722 -0.1805219   -0.2439493
-```
-
-
-```r
 tau_sim <- 0.17
 phi_s2s_sim <- 0.23
 phi_ss_sim <- 0.2
@@ -2027,7 +1987,7 @@ for(i in 1:n_sam) {
   mat_sd2[i,] <- c(tmp[1], as.data.frame(VarCorr(fit_sim2))$sdcor[1], tmp[2])
   ci_sim2a <- confint(fit_sim2a, level = 0.9)
   
-  mat_ci_sd2[,] <- c(sum(phi_s2s_sim > ci_sim2a[1,1] & phi_s2s_sim <= ci_sim2a[1,2]),
+  mat_ci_sd2[i,] <- c(sum(phi_s2s_sim > ci_sim2a[1,1] & phi_s2s_sim <= ci_sim2a[1,2]),
                      sum(tau_sim > ci_sim2[1,1] & tau_sim <= ci_sim2[1,2]),
                      sum(phi_ss_sim > ci_sim2a[2,1] & phi_ss_sim <= ci_sim2a[2,2]))
 }
@@ -2132,7 +2092,7 @@ Table: Fraction how many times the estimated standard deviation is inside the 90
 |         | phi_s2s|  tau| phi_ss|
 |:--------|-------:|----:|------:|
 |one-step |    0.94| 0.83|   0.86|
-|two-step |    0.66| 0.67|   0.67|
+|two-step |    0.80| 0.82|   0.88|
 
 ## Correlations between Random Effects
 
@@ -2332,10 +2292,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 35.6 seconds.
+## Chain 1 finished in 40.1 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 36.0 seconds.
+## Chain 2 finished in 40.5 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2346,13 +2306,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 39.3 seconds.
+## Chain 4 finished in 37.2 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 42.1 seconds.
+## Chain 3 finished in 39.3 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 38.3 seconds.
-## Total execution time: 78.0 seconds.
+## Mean chain execution time: 39.3 seconds.
+## Total execution time: 79.6 seconds.
 ```
 
 ```r
@@ -2360,7 +2320,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpdY3hDX/gmm_partition_wvar_corr-202402201340-1-814d3a.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpdY3hDX/gmm_partition_wvar_corr-202402201340-2-814d3a.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpdY3hDX/gmm_partition_wvar_corr-202402201340-3-814d3a.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpdY3hDX/gmm_partition_wvar_corr-202402201340-4-814d3a.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-1-815719.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-2-815719.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-3-815719.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-4-815719.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2380,7 +2340,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpdY3hDX/gmm_partition_wvar_corr-202402201340-1-814d3a.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpdY3hDX/gmm_partition_wvar_corr-202402201340-2-814d3a.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpdY3hDX/gmm_partition_wvar_corr-202402201340-3-814d3a.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpdY3hDX/gmm_partition_wvar_corr-202402201340-4-814d3a.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-1-815719.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-2-815719.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-3-815719.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-4-815719.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
