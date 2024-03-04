@@ -49,7 +49,10 @@ where $\mathbf{Z}$ is the design matrix of the random effects.
 It is importat to remember that in general the outcome of a mixed-effects regression will give point estimates of the random effects (the conditional modes),and that there is uncetainty around them.
 The conditional variances of the random effects are the diagonal entries of the following matrix
 $$
-\psi(\hat{\vec{u}})^2 = \phi_{SS}^2 \mathbf{\Lambda} \left(\mathbf{\Lambda}^T \mathbf{Z}^T \mathbf{Z} \mathbf{\Lambda} + \mathbf{I} \right)^{-1} \mathbf{\Lambda}
+\begin{aligned}
+V &= \phi_{SS}^2 \mathbf{\Lambda} \left(\mathbf{\Lambda}^T \mathbf{Z}^T \mathbf{Z} \mathbf{\Lambda} + \mathbf{I} \right)^{-1} \mathbf{\Lambda} \\
+\psi(\hat{\vec{u}})^2 &= \mbox{diag}(V)
+\end{aligned}
 $$
 where $\mathbf{\Lambda}$ is the relative covariance factor [@Bates2015].
 If this uncertainty is ignored, biases can occur, as we deomstrate throughut this page.
@@ -307,6 +310,7 @@ data.frame(inla = sd_deltaWS_inla,
 ```
 
 We now calculate the conditional standard deviations of the random effects from the `lmer` fit according to Equation (3) of the paper, which makes use of the design matrix of the random effects $\mathbf{Z}$, and the relative covariance factor $\mathbf{\Lambda}$.
+We compare the results against the values calculated by package `arm`, and find that the differences are negligible.
 
 ``` {r example-calc-se}
 Z <- getME(fit_lmer, 'Z') #sparse Z design matrix
@@ -315,8 +319,8 @@ lambda <- getME(fit_lmer, 'Lambda')
 V <- sigma(fit_lmer)^2 * lambda %*% solve((t(lambda) %*% t(Z) %*% Z %*% lambda + diag(n_eq + n_stat))) %*% lambda
 
 # station entries are first
-print(c(sum((arm::se.ranef(fit_lmer)$stat)^2 / diag(V)[1:n_stat]),
-        sum((arm::se.ranef(fit_lmer)$eq)^2 / diag(V)[(n_stat + 1):(n_eq + n_stat)])))
+print(c(sum((arm::se.ranef(fit_lmer)$stat)^2 - diag(V)[1:n_stat]),
+        sum((arm::se.ranef(fit_lmer)$eq)^2 - diag(V)[(n_stat + 1):(n_eq + n_stat)])))
 ```
 
 # Simulations using CB14 Data
@@ -1500,6 +1504,7 @@ The spatial correlation structure can be assessed from point estimates of the si
 Here, we simulate some data with spatially correlated site terms, to check whether we can get the model parameters back.
 
 We use the Mat\'ern covariance function for the spatial correlation of the site terms, which is defined below.
+In general, we follow @Krainski2019 when seting up the spatial models.
 
 ``` {r cmatern}
 cMatern <- function(h, nu, kappa) {
@@ -1537,15 +1542,16 @@ phi_ss_sim <- 0.2
 cov <- phi_s2s_c^2 * cMatern(as.matrix(dist(co_stat_utm)), nu, kappa) + diag(10^-9, n_stat)
 ```
 
-To se R-INLA with the ``stochastic partial differential equation'' (SPDE) approach, we need to define a mesh.
-``` {r sim-it-spatial-mesh}
+To use R-INLA with the ``stochastic partial differential equation'' (SPDE) approach, we need to define a mesh.
+
+``` {r sim-it-spatial-mesh, warning=FALSE, message=FALSE}
 max.edge2    <- 5 
 bound.outer2 <- 40 
 mesh = inla.mesh.2d(loc=co_stat_utm,
                     max.edge = c(1,5)*max.edge2,
                     cutoff = max.edge2,
                     offset = c(5 * max.edge2, bound.outer2))
-print(mesh$n)
+print(mesh$n) # print number of mesh nodes
 ```
 
 Now we define priors for the standard deviations (based on @Simpson2017), the SPDE prior, the projecion matrix `A`, and the formula.
@@ -1719,11 +1725,31 @@ We can see that the spatial range is quite well estimated for all approaches, an
 The model based on site terms does not lead to good results for the standard deviations, in particular for $\phi_{S2S,c}$, which is severely underestimated.
 The relative sizes of standard devations based on the fit from $\delta S$ are wrongly estimated.
 
-## Cell-specific atteuation
+
+Below, we plot differences predictions of the spatially correlated site terms between the full model and the model estimated from point estimates of the site terms.
+We sho
+
+``` {r sim-it-spatial-plot-diff, out.width = '100%', fig.width=16}
+diff <- fit_inla_spatial_stat_u$summary.random$idx_stat$mean - fit_inla_spatial_stat$summary.random$idx_stat$mean
+diff2 <- fit_inla_spatial_total$summary.random$idx_stat$mean - fit_inla_spatial_stat$summary.random$idx_stat$mean
+
+p1 <- ggplot() + theme_bw() + inlabru::gg(mesh, color = diff, nx = 500, ny = 500) +
+  labs(x="X (km)", y="Y (km)", title = "Difference in Mean Predictios",
+       subtitle = "dS - full") +
+  scale_fill_gradient2(name = "", limits = c(-0.15,0.15))
+
+p2 <- ggplot() + theme_bw() + inlabru::gg(mesh, color = diff2, nx = 500, ny = 500) +
+  labs(x="X (km)", y="Y (km)", title = "Difference in Mean Predictios",
+       subtitle = "dR - full") +
+  scale_fill_gradient2(name = "", limits = c(-0.15,0.15))
+patchwork::wrap_plots(p1, p2)
+```
+
+## Cell-specific attenuation
 
 In this section, we simulate data based on the cell-specific attenuation model [@Kuehn2019,@Dawood2013], and estimate the model parameters using the total model, as well as from within-event/within-site residuals.
 
-Read in the cell-specific distances, and some definitions.
+First, we read in the cell-specific distances, and some definitions.
 
 ``` {r sim-it-cell-data}
 # read in cell-specific attenuation
@@ -1812,6 +1838,7 @@ rbind(data.frame(inla.tmarginal(function(x) sqrt(exp(-x)),
   theme(legend.position = c(0.8,0.8)) +
   guides(color = guide_legend(title = NULL))
 ```
+
 
 # Plots of Repeated Simulations
 

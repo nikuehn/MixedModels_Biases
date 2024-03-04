@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "20 February, 2024 "
+date: "04 March, 2024 "
 output:
   html_document:
     keep_md: true
@@ -45,7 +45,10 @@ where $\mathbf{Z}$ is the design matrix of the random effects.
 It is importat to remember that in general the outcome of a mixed-effects regression will give point estimates of the random effects (the conditional modes),and that there is uncetainty around them.
 The conditional variances of the random effects are the diagonal entries of the following matrix
 $$
-\psi(\hat{\vec{u}})^2 = \phi_{SS}^2 \mathbf{\Lambda} \left(\mathbf{\Lambda}^T \mathbf{Z}^T \mathbf{Z} \mathbf{\Lambda} + \mathbf{I} \right)^{-1} \mathbf{\Lambda}
+\begin{aligned}
+V &= \phi_{SS}^2 \mathbf{\Lambda} \left(\mathbf{\Lambda}^T \mathbf{Z}^T \mathbf{Z} \mathbf{\Lambda} + \mathbf{I} \right)^{-1} \mathbf{\Lambda} \\
+\psi(\hat{\vec{u}})^2 &= \mbox{diag}(V)
+\end{aligned}
 $$
 where $\mathbf{\Lambda}$ is the relative covariance factor [@Bates2015].
 If this uncertainty is ignored, biases can occur, as we deomstrate throughut this page.
@@ -390,6 +393,7 @@ data.frame(inla = sd_deltaWS_inla,
 <img src="pictures/example-plot-se2-1.png" width="50%" />
 
 We now calculate the conditional standard deviations of the random effects from the `lmer` fit according to Equation (3) of the paper, which makes use of the design matrix of the random effects $\mathbf{Z}$, and the relative covariance factor $\mathbf{\Lambda}$.
+We compare the results against the values calculated by package `arm`, and find that the differences are negligible.
 
 
 ```r
@@ -399,12 +403,12 @@ lambda <- getME(fit_lmer, 'Lambda')
 V <- sigma(fit_lmer)^2 * lambda %*% solve((t(lambda) %*% t(Z) %*% Z %*% lambda + diag(n_eq + n_stat))) %*% lambda
 
 # station entries are first
-print(c(sum((arm::se.ranef(fit_lmer)$stat)^2 / diag(V)[1:n_stat]),
-        sum((arm::se.ranef(fit_lmer)$eq)^2 / diag(V)[(n_stat + 1):(n_eq + n_stat)])))
+print(c(sum((arm::se.ranef(fit_lmer)$stat)^2 - diag(V)[1:n_stat]),
+        sum((arm::se.ranef(fit_lmer)$eq)^2 - diag(V)[(n_stat + 1):(n_eq + n_stat)])))
 ```
 
 ```
-## [1] 923 137
+## [1] 7.350891e-16 2.257309e-16
 ```
 
 # Simulations using CB14 Data
@@ -2292,10 +2296,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 40.1 seconds.
+## Chain 1 finished in 39.1 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 40.5 seconds.
+## Chain 2 finished in 39.6 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2306,13 +2310,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 37.2 seconds.
+## Chain 4 finished in 38.5 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 39.3 seconds.
+## Chain 3 finished in 42.2 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 39.3 seconds.
-## Total execution time: 79.6 seconds.
+## Mean chain execution time: 39.8 seconds.
+## Total execution time: 81.6 seconds.
 ```
 
 ```r
@@ -2320,7 +2324,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-1-815719.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-2-815719.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-3-815719.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-4-815719.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-1-813e38.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-2-813e38.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-3-813e38.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-4-813e38.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2340,7 +2344,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-1-815719.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-2-815719.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-3-815719.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpco0rSP/gmm_partition_wvar_corr-202402201921-4-815719.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-1-813e38.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-2-813e38.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-3-813e38.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-4-813e38.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -2499,6 +2503,7 @@ The spatial correlation structure can be assessed from point estimates of the si
 Here, we simulate some data with spatially correlated site terms, to check whether we can get the model parameters back.
 
 We use the Mat\'ern covariance function for the spatial correlation of the site terms, which is defined below.
+In general, we follow @Krainski2019 when seting up the spatial models.
 
 
 ```r
@@ -2538,7 +2543,8 @@ phi_ss_sim <- 0.2
 cov <- phi_s2s_c^2 * cMatern(as.matrix(dist(co_stat_utm)), nu, kappa) + diag(10^-9, n_stat)
 ```
 
-To se R-INLA with the ``stochastic partial differential equation'' (SPDE) approach, we need to define a mesh.
+To use R-INLA with the ``stochastic partial differential equation'' (SPDE) approach, we need to define a mesh.
+
 
 ```r
 max.edge2    <- 5 
@@ -2547,28 +2553,7 @@ mesh = inla.mesh.2d(loc=co_stat_utm,
                     max.edge = c(1,5)*max.edge2,
                     cutoff = max.edge2,
                     offset = c(5 * max.edge2, bound.outer2))
-```
-
-```
-## Please note that rgdal will be retired during October 2023,
-## plan transition to sf/stars/terra functions using GDAL and PROJ
-## at your earliest convenience.
-## See https://r-spatial.org/r/2023/05/15/evolution4.html and https://github.com/r-spatial/evolution
-## rgdal: version: 1.6-7, (SVN revision 1203)
-## Geospatial Data Abstraction Library extensions to R successfully loaded
-## Loaded GDAL runtime: GDAL 3.4.2, released 2022/03/08
-## Path to GDAL shared files: /Users/nico/Library/R/x86_64/4.2/library/rgdal/gdal
-## GDAL binary built with GEOS: FALSE 
-## Loaded PROJ runtime: Rel. 8.2.1, January 1st, 2022, [PJ_VERSION: 821]
-## Path to PROJ shared files: /Users/nico/Library/R/x86_64/4.2/library/rgdal/proj
-## PROJ CDN enabled: FALSE
-## Linking to sp version:1.6-1
-## To mute warnings of possible GDAL/OSR exportToProj4() degradation,
-## use options("rgdal_show_exportToProj4_warnings"="none") before loading sp or rgdal.
-```
-
-```r
-print(mesh$n)
+print(mesh$n) # print number of mesh nodes
 ```
 
 ```
@@ -2752,11 +2737,34 @@ We can see that the spatial range is quite well estimated for all approaches, an
 The model based on site terms does not lead to good results for the standard deviations, in particular for $\phi_{S2S,c}$, which is severely underestimated.
 The relative sizes of standard devations based on the fit from $\delta S$ are wrongly estimated.
 
-## Cell-specific atteuation
+
+Below, we plot differences predictions of the spatially correlated site terms between the full model and the model estimated from point estimates of the site terms.
+We sho
+
+
+```r
+diff <- fit_inla_spatial_stat_u$summary.random$idx_stat$mean - fit_inla_spatial_stat$summary.random$idx_stat$mean
+diff2 <- fit_inla_spatial_total$summary.random$idx_stat$mean - fit_inla_spatial_stat$summary.random$idx_stat$mean
+
+p1 <- ggplot() + theme_bw() + inlabru::gg(mesh, color = diff, nx = 500, ny = 500) +
+  labs(x="X (km)", y="Y (km)", title = "Difference in Mean Predictios",
+       subtitle = "dS - full") +
+  scale_fill_gradient2(name = "", limits = c(-0.15,0.15))
+
+p2 <- ggplot() + theme_bw() + inlabru::gg(mesh, color = diff2, nx = 500, ny = 500) +
+  labs(x="X (km)", y="Y (km)", title = "Difference in Mean Predictios",
+       subtitle = "dR - full") +
+  scale_fill_gradient2(name = "", limits = c(-0.15,0.15))
+patchwork::wrap_plots(p1, p2)
+```
+
+<img src="pictures/sim-it-spatial-plot-diff-1.png" width="100%" />
+
+## Cell-specific attenuation
 
 In this section, we simulate data based on the cell-specific attenuation model [@Kuehn2019,@Dawood2013], and estimate the model parameters using the total model, as well as from within-event/within-site residuals.
 
-Read in the cell-specific distances, and some definitions.
+First, we read in the cell-specific distances, and some definitions.
 
 
 ```r
@@ -2858,6 +2866,7 @@ rbind(data.frame(inla.tmarginal(function(x) sqrt(exp(-x)),
 ```
 
 <img src="pictures/sim-it-inla-results-1.png" width="50%" />
+
 
 # Plots of Repeated Simulations
 
