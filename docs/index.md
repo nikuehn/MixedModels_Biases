@@ -2296,10 +2296,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 39.1 seconds.
+## Chain 1 finished in 82.3 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 39.6 seconds.
+## Chain 2 finished in 84.0 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2310,13 +2310,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 38.5 seconds.
+## Chain 4 finished in 60.5 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 42.2 seconds.
+## Chain 3 finished in 64.5 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 39.8 seconds.
-## Total execution time: 81.6 seconds.
+## Mean chain execution time: 72.8 seconds.
+## Total execution time: 147.2 seconds.
 ```
 
 ```r
@@ -2324,7 +2324,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-1-813e38.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-2-813e38.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-3-813e38.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-4-813e38.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpUN6xIH/gmm_partition_wvar_corr-202403041536-1-814845.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpUN6xIH/gmm_partition_wvar_corr-202403041536-2-814845.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpUN6xIH/gmm_partition_wvar_corr-202403041536-3-814845.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpUN6xIH/gmm_partition_wvar_corr-202403041536-4-814845.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2344,7 +2344,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-1-813e38.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-2-813e38.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-3-813e38.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQYk4aV/gmm_partition_wvar_corr-202403041431-4-813e38.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpUN6xIH/gmm_partition_wvar_corr-202403041536-1-814845.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpUN6xIH/gmm_partition_wvar_corr-202403041536-2-814845.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpUN6xIH/gmm_partition_wvar_corr-202403041536-3-814845.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpUN6xIH/gmm_partition_wvar_corr-202403041536-4-814845.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -2746,12 +2746,12 @@ We sho
 diff <- fit_inla_spatial_stat_u$summary.random$idx_stat$mean - fit_inla_spatial_stat$summary.random$idx_stat$mean
 diff2 <- fit_inla_spatial_total$summary.random$idx_stat$mean - fit_inla_spatial_stat$summary.random$idx_stat$mean
 
-p1 <- ggplot() + theme_bw() + inlabru::gg(mesh, color = diff, nx = 500, ny = 500) +
+p1 <- ggplot() + inlabru::gg(mesh, color = diff, nx = 500, ny = 500) +
   labs(x="X (km)", y="Y (km)", title = "Difference in Mean Predictios",
        subtitle = "dS - full") +
   scale_fill_gradient2(name = "", limits = c(-0.15,0.15))
 
-p2 <- ggplot() + theme_bw() + inlabru::gg(mesh, color = diff2, nx = 500, ny = 500) +
+p2 <- ggplot() + inlabru::gg(mesh, color = diff2, nx = 500, ny = 500) +
   labs(x="X (km)", y="Y (km)", title = "Difference in Mean Predictios",
        subtitle = "dR - full") +
   scale_fill_gradient2(name = "", limits = c(-0.15,0.15))

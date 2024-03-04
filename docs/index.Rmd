@@ -1733,12 +1733,12 @@ We sho
 diff <- fit_inla_spatial_stat_u$summary.random$idx_stat$mean - fit_inla_spatial_stat$summary.random$idx_stat$mean
 diff2 <- fit_inla_spatial_total$summary.random$idx_stat$mean - fit_inla_spatial_stat$summary.random$idx_stat$mean
 
-p1 <- ggplot() + theme_bw() + inlabru::gg(mesh, color = diff, nx = 500, ny = 500) +
+p1 <- ggplot() + inlabru::gg(mesh, color = diff, nx = 500, ny = 500) +
   labs(x="X (km)", y="Y (km)", title = "Difference in Mean Predictios",
        subtitle = "dS - full") +
   scale_fill_gradient2(name = "", limits = c(-0.15,0.15))
 
-p2 <- ggplot() + theme_bw() + inlabru::gg(mesh, color = diff2, nx = 500, ny = 500) +
+p2 <- ggplot() + inlabru::gg(mesh, color = diff2, nx = 500, ny = 500) +
   labs(x="X (km)", y="Y (km)", title = "Difference in Mean Predictios",
        subtitle = "dR - full") +
   scale_fill_gradient2(name = "", limits = c(-0.15,0.15))
