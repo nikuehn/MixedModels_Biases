@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "04 March, 2024 "
+date: "05 March, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -691,11 +691,13 @@ Table: P-values from Breusch-Pagan test.
 |sample         | 0.80356| 0.53500| 0.6652|
 |true           | 0.10186| 0.98637| 0.8881|
 
-Below, we calculate the standard deviations of the site terms $\delta S$, the event terms $\delta B$, and the residuals $\delta WS$, both for the simulated (true) values, and the point estimates from the `lmer` fit.
+Below, we calculate the standard deviations of the site terms $\delta S$, the event terms $\delta B$, and the residuals $\delta WS$, for different magnitude bins.
+We calculate the standard deviations for the simulated (true) values, the point estimates from the `lmer` fit, and for the estmated random effects/residuals including their uncertainty.
 The true value of the standard deviation is shown as a horizontal black line.
 
-We can decreasing values wth magnitude in the standard deviations estimated from the point estimates for $\phi_{S2S}$ and $\phi_{SS}$, while the values calculated from the true samples are more constant (as they shold be).
+We can decreasing values wth magnitude in the standard deviations estimated from the point estimates for $\phi_{S2S}$ and $\phi_{SS}$, while the values calculated from the true samples are more constant (as they should be).
 While one always needs to be careful with different numbers of events/records/stations within each bin, plots like these (wth patterns as in these plots) are often used to conclude that standard deviations ($\phi_{S2S}$ and $\phi_{SS}$ in this case) should be modeled as magnitude dependent, which in this case is not true.
+The standard deviations that include uncertainty of the random effects/residuals show a pattern that is closr to constant.
 
 
 ```r
@@ -703,66 +705,69 @@ While one always needs to be careful with different numbers of events/records/st
 magbins <- c(3,4,5,6,7,8)
 
 # site terms
-df_stat <- data.frame(M = magstat, dS_sim, dS_lmer) %>% 
+df_stat <- data.frame(M = magstat, dS_sim, dS_lmer, sd_dS_lmer) %>% 
   mutate(bin = cut(M, breaks = magbins, labels = FALSE)) %>%
   group_by(bin) %>%
   mutate(sd_sim = sd(dS_sim),
          sd_lmer = sd(dS_lmer),
+         sd_lmer_unc = sqrt((sum(dS_lmer^2) + sum(sd_dS_lmer^2))/length(dS_lmer^2)),
          meanM = mean(M)) %>%
   arrange(M)
 
-p1 <- cbind(unique(df_stat[,c('sd_sim','sd_lmer','meanM')]), 
-      m1 = magbins[1:(length(magbins)-1)],
-      m2 = magbins[2:length(magbins)]) |>
+p1 <- cbind(unique(df_stat[,c('sd_sim','sd_lmer','sd_lmer_unc','meanM')]), 
+            m1 = magbins[1:(length(magbins)-1)],
+            m2 = magbins[2:length(magbins)]) |>
   pivot_longer(!c(m1,m2,meanM)) |>
   ggplot() +
   geom_segment(aes(x = m1, xend = m2, y=value, yend = value, color = name), linewidth = 1.5) +
-  scale_color_manual(values = c('red','blue'),
-                     labels = c('lmer','sim')) +
+  scale_color_manual(values = c('red','orange','blue'),
+                     labels = c('lmer','lmer with unc','sim')) +
   geom_hline(yintercept = phi_s2s_sim, linewidth = 1.5) +
   guides(color = guide_legend(title=NULL)) +
   labs(x = 'M', y = 'phi_S2S') +
   theme(legend.position = c(0.2,0.2))
 
 # event terms
-df_eq <- data.frame(M = mageq, dB_sim, dB_lmer) %>% 
+df_eq <- data.frame(M = mageq, dB_sim, dB_lmer, sd_dB_lmer) %>% 
   mutate(bin = cut(M, breaks = magbins, labels = FALSE)) %>%
   group_by(bin) %>%
   mutate(sd_sim = sd(dB_sim),
          sd_lmer = sd(dB_lmer),
+         sd_lmer_unc = sqrt((sum(dB_lmer^2) + sum(sd_dB_lmer^2))/length(dB_lmer^2)),
          meanM = mean(M)) %>%
   arrange(M)
 
-p2 <- cbind(unique(df_eq[,c('sd_sim','sd_lmer','meanM')]), 
+p2 <- cbind(unique(df_eq[,c('sd_sim','sd_lmer','sd_lmer_unc','meanM')]), 
       m1 = magbins[1:(length(magbins)-1)],
       m2 = magbins[2:length(magbins)]) |>
   pivot_longer(!c(m1,m2,meanM)) |>
   ggplot() +
   geom_segment(aes(x = m1, xend = m2, y=value, yend = value, color = name), linewidth = 1.5) +
-  scale_color_manual(values = c('red','blue'),
-                     labels = c('lmer','sim')) +
+  scale_color_manual(values = c('red','orange','blue'),
+                     labels = c('lmer','lmer with unc','sim')) +
   geom_hline(yintercept = tau_sim, linewidth = 1.5) +
   guides(color = guide_legend(title=NULL)) +
   labs(x = 'M', y = 'tau') +
   theme(legend.position = 'none')
 
 # residuals
-df_rec <- data.frame(M = data_reg$M, dWS_sim, dWS_lmer) %>% 
+df_rec <- data.frame(M = data_reg$M, dWS_sim, dWS_lmer, sd_dWS_lmer) %>% 
   mutate(bin = cut(M, breaks = magbins, labels = FALSE)) %>%
   group_by(bin) %>%
   mutate(sd_sim = sd(dWS_sim),
          sd_lmer = sd(dWS_lmer),
+         sd_lmer_unc = sqrt((sum(dWS_lmer^2) + sum(sd_dWS_lmer^2))/length(dWS_lmer^2)),
          meanM = mean(M)) %>%
   arrange(M)
 
-p3 <- cbind(unique(df_rec[,c('sd_sim','sd_lmer','meanM')]), 
+p3 <- cbind(unique(df_rec[,c('sd_sim','sd_lmer','sd_lmer_unc','meanM')]), 
       m1 = magbins[1:(length(magbins)-1)],
       m2 = magbins[2:length(magbins)]) |>
   pivot_longer(!c(m1,m2,meanM)) |>
   ggplot() +
   geom_segment(aes(x = m1, xend = m2, y=value, yend = value, color = name), linewidth = 1.5) +
-  scale_color_manual(values = c('red','blue'),
-                     labels = c('lmer','sim')) +
+  scale_color_manual(values = c('red','orange','blue'),
+                     labels = c('lmer','lmer with unc','sim')) +
   geom_hline(yintercept = phi_ss_sim, linewidth = 1.5) +
   guides(color = guide_legend(title=NULL)) +
   labs(x = 'M', y = 'phi_SS') +
@@ -2296,10 +2301,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 43.7 seconds.
+## Chain 1 finished in 38.0 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 44.2 seconds.
+## Chain 2 finished in 38.5 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2310,13 +2315,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 36.0 seconds.
+## Chain 4 finished in 35.8 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 37.8 seconds.
+## Chain 3 finished in 37.7 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 40.5 seconds.
-## Total execution time: 81.9 seconds.
+## Mean chain execution time: 37.5 seconds.
+## Total execution time: 76.0 seconds.
 ```
 
 ```r
@@ -2324,7 +2329,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGxWeGe/gmm_partition_wvar_corr-202403041549-1-814e9e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGxWeGe/gmm_partition_wvar_corr-202403041549-2-814e9e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGxWeGe/gmm_partition_wvar_corr-202403041549-3-814e9e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGxWeGe/gmm_partition_wvar_corr-202403041549-4-814e9e.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-1-817f36.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-2-817f36.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-3-817f36.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-4-817f36.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2344,7 +2349,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGxWeGe/gmm_partition_wvar_corr-202403041549-1-814e9e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGxWeGe/gmm_partition_wvar_corr-202403041549-2-814e9e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGxWeGe/gmm_partition_wvar_corr-202403041549-3-814e9e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpGxWeGe/gmm_partition_wvar_corr-202403041549-4-814e9e.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-1-817f36.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-2-817f36.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-3-817f36.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-4-817f36.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -2589,7 +2594,7 @@ form_spatial_stat <- y ~ 0 + intercept +
   f(stat, model = "iid",hyper = prior_prec_phiS2S) +
   f(idx_stat, model = spde_stat)
 
-# formua for fit from site terms
+# formula for fit from site terms
 form_spatial_stat_u <- y ~ 0 + intercept + f(idx_stat, model = spde_stat)
 ```
 
@@ -2738,8 +2743,9 @@ The model based on site terms does not lead to good results for the standard dev
 The relative sizes of standard devations based on the fit from $\delta S$ are wrongly estimated.
 
 
-Below, we plot differences predictions of the spatially correlated site terms between the full model and the model estimated from point estimates of the site terms.
-We sho
+Below, we plot differences predictions of the spatially correlated site terms between the different models.
+We show differences with respect to the full model.
+As we can see, there are strong differences in the predicted means of the spatially correlated site terms of the full model and the model estmated from site terms.
 
 
 ```r

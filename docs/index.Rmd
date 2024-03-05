@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "`r format(Sys.time(), '%d %B, %Y')` "
+date: "`r format(Sys.time(), '%d %B, %Y')`, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -517,77 +517,82 @@ knitr::kable(df, digits = 5, row.names = TRUE,
              caption = "P-values from Breusch-Pagan test.")
 ```
 
-Below, we calculate the standard deviations of the site terms $\delta S$, the event terms $\delta B$, and the residuals $\delta WS$, both for the simulated (true) values, and the point estimates from the `lmer` fit.
+Below, we calculate the standard deviations of the site terms $\delta S$, the event terms $\delta B$, and the residuals $\delta WS$, for different magnitude bins.
+We calculate the standard deviations for the simulated (true) values, the point estimates from the `lmer` fit, and for the estmated random effects/residuals including their uncertainty.
 The true value of the standard deviation is shown as a horizontal black line.
 
-We can decreasing values wth magnitude in the standard deviations estimated from the point estimates for $\phi_{S2S}$ and $\phi_{SS}$, while the values calculated from the true samples are more constant (as they shold be).
+We can decreasing values wth magnitude in the standard deviations estimated from the point estimates for $\phi_{S2S}$ and $\phi_{SS}$, while the values calculated from the true samples are more constant (as they should be).
 While one always needs to be careful with different numbers of events/records/stations within each bin, plots like these (wth patterns as in these plots) are often used to conclude that standard deviations ($\phi_{S2S}$ and $\phi_{SS}$ in this case) should be modeled as magnitude dependent, which in this case is not true.
+The standard deviations that include uncertainty of the random effects/residuals show a pattern that is closr to constant.
 
 ``` {r sim1-plot-sd-bin, out.width = '100%', fig.width=12}
 # mamgnitude break points for bins
 magbins <- c(3,4,5,6,7,8)
 
 # site terms
-df_stat <- data.frame(M = magstat, dS_sim, dS_lmer) %>% 
+df_stat <- data.frame(M = magstat, dS_sim, dS_lmer, sd_dS_lmer) %>% 
   mutate(bin = cut(M, breaks = magbins, labels = FALSE)) %>%
   group_by(bin) %>%
   mutate(sd_sim = sd(dS_sim),
          sd_lmer = sd(dS_lmer),
+         sd_lmer_unc = sqrt((sum(dS_lmer^2) + sum(sd_dS_lmer^2))/length(dS_lmer^2)),
          meanM = mean(M)) %>%
   arrange(M)
 
-p1 <- cbind(unique(df_stat[,c('sd_sim','sd_lmer','meanM')]), 
-      m1 = magbins[1:(length(magbins)-1)],
-      m2 = magbins[2:length(magbins)]) |>
+p1 <- cbind(unique(df_stat[,c('sd_sim','sd_lmer','sd_lmer_unc','meanM')]), 
+            m1 = magbins[1:(length(magbins)-1)],
+            m2 = magbins[2:length(magbins)]) |>
   pivot_longer(!c(m1,m2,meanM)) |>
   ggplot() +
   geom_segment(aes(x = m1, xend = m2, y=value, yend = value, color = name), linewidth = 1.5) +
-  scale_color_manual(values = c('red','blue'),
-                     labels = c('lmer','sim')) +
+  scale_color_manual(values = c('red','orange','blue'),
+                     labels = c('lmer','lmer with unc','sim')) +
   geom_hline(yintercept = phi_s2s_sim, linewidth = 1.5) +
   guides(color = guide_legend(title=NULL)) +
   labs(x = 'M', y = 'phi_S2S') +
   theme(legend.position = c(0.2,0.2))
 
 # event terms
-df_eq <- data.frame(M = mageq, dB_sim, dB_lmer) %>% 
+df_eq <- data.frame(M = mageq, dB_sim, dB_lmer, sd_dB_lmer) %>% 
   mutate(bin = cut(M, breaks = magbins, labels = FALSE)) %>%
   group_by(bin) %>%
   mutate(sd_sim = sd(dB_sim),
          sd_lmer = sd(dB_lmer),
+         sd_lmer_unc = sqrt((sum(dB_lmer^2) + sum(sd_dB_lmer^2))/length(dB_lmer^2)),
          meanM = mean(M)) %>%
   arrange(M)
 
-p2 <- cbind(unique(df_eq[,c('sd_sim','sd_lmer','meanM')]), 
+p2 <- cbind(unique(df_eq[,c('sd_sim','sd_lmer','sd_lmer_unc','meanM')]), 
       m1 = magbins[1:(length(magbins)-1)],
       m2 = magbins[2:length(magbins)]) |>
   pivot_longer(!c(m1,m2,meanM)) |>
   ggplot() +
   geom_segment(aes(x = m1, xend = m2, y=value, yend = value, color = name), linewidth = 1.5) +
-  scale_color_manual(values = c('red','blue'),
-                     labels = c('lmer','sim')) +
+  scale_color_manual(values = c('red','orange','blue'),
+                     labels = c('lmer','lmer with unc','sim')) +
   geom_hline(yintercept = tau_sim, linewidth = 1.5) +
   guides(color = guide_legend(title=NULL)) +
   labs(x = 'M', y = 'tau') +
   theme(legend.position = 'none')
 
 # residuals
-df_rec <- data.frame(M = data_reg$M, dWS_sim, dWS_lmer) %>% 
+df_rec <- data.frame(M = data_reg$M, dWS_sim, dWS_lmer, sd_dWS_lmer) %>% 
   mutate(bin = cut(M, breaks = magbins, labels = FALSE)) %>%
   group_by(bin) %>%
   mutate(sd_sim = sd(dWS_sim),
          sd_lmer = sd(dWS_lmer),
+         sd_lmer_unc = sqrt((sum(dWS_lmer^2) + sum(sd_dWS_lmer^2))/length(dWS_lmer^2)),
          meanM = mean(M)) %>%
   arrange(M)
 
-p3 <- cbind(unique(df_rec[,c('sd_sim','sd_lmer','meanM')]), 
+p3 <- cbind(unique(df_rec[,c('sd_sim','sd_lmer','sd_lmer_unc','meanM')]), 
       m1 = magbins[1:(length(magbins)-1)],
       m2 = magbins[2:length(magbins)]) |>
   pivot_longer(!c(m1,m2,meanM)) |>
   ggplot() +
   geom_segment(aes(x = m1, xend = m2, y=value, yend = value, color = name), linewidth = 1.5) +
-  scale_color_manual(values = c('red','blue'),
-                     labels = c('lmer','sim')) +
+  scale_color_manual(values = c('red','orange','blue'),
+                     labels = c('lmer','lmer with unc','sim')) +
   geom_hline(yintercept = phi_ss_sim, linewidth = 1.5) +
   guides(color = guide_legend(title=NULL)) +
   labs(x = 'M', y = 'phi_SS') +
@@ -1582,7 +1587,7 @@ form_spatial_stat <- y ~ 0 + intercept +
   f(stat, model = "iid",hyper = prior_prec_phiS2S) +
   f(idx_stat, model = spde_stat)
 
-# formua for fit from site terms
+# formula for fit from site terms
 form_spatial_stat_u <- y ~ 0 + intercept + f(idx_stat, model = spde_stat)
 ```
 
@@ -1726,8 +1731,9 @@ The model based on site terms does not lead to good results for the standard dev
 The relative sizes of standard devations based on the fit from $\delta S$ are wrongly estimated.
 
 
-Below, we plot differences predictions of the spatially correlated site terms between the full model and the model estimated from point estimates of the site terms.
-We sho
+Below, we plot differences predictions of the spatially correlated site terms between the different models.
+We show differences with respect to the full model.
+As we can see, there are strong differences in the predicted means of the spatially correlated site terms of the full model and the model estmated from site terms.
 
 ``` {r sim-it-spatial-plot-diff, out.width = '100%', fig.width=16}
 diff <- fit_inla_spatial_stat_u$summary.random$idx_stat$mean - fit_inla_spatial_stat$summary.random$idx_stat$mean
