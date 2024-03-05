@@ -2301,10 +2301,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 38.0 seconds.
+## Chain 1 finished in 32.7 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 38.5 seconds.
+## Chain 2 finished in 33.1 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2315,13 +2315,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 35.8 seconds.
+## Chain 4 finished in 40.0 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 37.7 seconds.
+## Chain 3 finished in 41.9 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 37.5 seconds.
-## Total execution time: 76.0 seconds.
+## Mean chain execution time: 36.9 seconds.
+## Total execution time: 74.9 seconds.
 ```
 
 ```r
@@ -2329,7 +2329,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-1-817f36.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-2-817f36.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-3-817f36.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-4-817f36.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-1-81901b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-2-81901b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-3-81901b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-4-81901b.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2349,7 +2349,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-1-817f36.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-2-817f36.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-3-817f36.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpCvmrHH/gmm_partition_wvar_corr-202403051539-4-817f36.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-1-81901b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-2-81901b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-3-81901b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-4-81901b.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -3129,10 +3129,31 @@ patchwork::wrap_plots(p1, p2)
 
 ## Correlations of Random Effects
 
+```r
+tau_sim1 <- 0.4
+phi_s2s_sim1 <- 0.43
+phi_ss_sim1 <- 0.5
+
+tau_sim2 <- 0.45
+phi_s2s_sim2 <- 0.4
+phi_ss_sim2 <- 0.55
+
+sigma_tot1 <- sqrt(tau_sim1^2 + phi_s2s_sim1^2 + phi_ss_sim1^2)
+sigma_tot2 <- sqrt(tau_sim2^2 + phi_s2s_sim2^2 + phi_ss_sim2^2)
+```
+
 
 ```r
 load(file.path('./Git/MixedModels_Biases/', 'results',
                                         'res_corrre_CB14_high.Rdata'))
+
+rho_tau <- 0.95
+rho_ss <- 0.9
+rho_s2s <- 0.85
+rho_total <- (rho_tau * tau_sim1 * tau_sim2 +
+                rho_s2s * phi_s2s_sim1 * phi_s2s_sim2 +
+                rho_ss * phi_ss_sim1 * phi_ss_sim2) /
+  (sigma_tot1 * sigma_tot2)
 
 patchwork::wrap_plots(
   data.frame(mat_cor[,c(1,6)]) %>%
@@ -3208,6 +3229,14 @@ patchwork::wrap_plots(
 load(file.path('./Git/MixedModels_Biases/', 'results',
                                         'res_corrre_CB14_low.Rdata'))
 
+rho_tau <- 0.45
+rho_ss <- 0.5
+rho_s2s <- 0.55
+rho_total <- (rho_tau * tau_sim1 * tau_sim2 +
+                rho_s2s * phi_s2s_sim1 * phi_s2s_sim2 +
+                rho_ss * phi_ss_sim1 * phi_ss_sim2) /
+  (sigma_tot1 * sigma_tot2)
+
 patchwork::wrap_plots(
   data.frame(mat_cor[,c(1,6)]) %>%
     pivot_longer(everything()) %>%
@@ -3271,24 +3300,11 @@ patchwork::wrap_plots(
 ```
 
 ```
-## Warning: Removed 1 rows containing missing values (`geom_vline()`).
-```
-
-```
 ## Warning: Removed 2 rows containing non-finite values (`stat_density()`).
 ```
 
 ```
-## Warning: Removed 1 rows containing missing values (`geom_vline()`).
-## Removed 1 rows containing missing values (`geom_vline()`).
-```
-
-```
 ## Warning: Removed 3 rows containing non-finite values (`stat_density()`).
-```
-
-```
-## Warning: Removed 1 rows containing missing values (`geom_vline()`).
 ```
 
 <img src="pictures/res-sim6-corrre-low-1.png" width="100%" />

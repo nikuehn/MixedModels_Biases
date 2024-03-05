@@ -2073,10 +2073,30 @@ patchwork::wrap_plots(p1, p2)
 ```
 
 ## Correlations of Random Effects
+``` {r res-sim6-corrre}
+tau_sim1 <- 0.4
+phi_s2s_sim1 <- 0.43
+phi_ss_sim1 <- 0.5
+
+tau_sim2 <- 0.45
+phi_s2s_sim2 <- 0.4
+phi_ss_sim2 <- 0.55
+
+sigma_tot1 <- sqrt(tau_sim1^2 + phi_s2s_sim1^2 + phi_ss_sim1^2)
+sigma_tot2 <- sqrt(tau_sim2^2 + phi_s2s_sim2^2 + phi_ss_sim2^2)
+```
 
 ``` {r res-sim6-corrre-high, out.width = '100%'}
 load(file.path('./Git/MixedModels_Biases/', 'results',
                                         'res_corrre_CB14_high.Rdata'))
+
+rho_tau <- 0.95
+rho_ss <- 0.9
+rho_s2s <- 0.85
+rho_total <- (rho_tau * tau_sim1 * tau_sim2 +
+                rho_s2s * phi_s2s_sim1 * phi_s2s_sim2 +
+                rho_ss * phi_ss_sim1 * phi_ss_sim2) /
+  (sigma_tot1 * sigma_tot2)
 
 patchwork::wrap_plots(
   data.frame(mat_cor[,c(1,6)]) %>%
@@ -2148,6 +2168,14 @@ patchwork::wrap_plots(
 ``` {r res-sim6-corrre-low, out.width = '100%'}
 load(file.path('./Git/MixedModels_Biases/', 'results',
                                         'res_corrre_CB14_low.Rdata'))
+
+rho_tau <- 0.45
+rho_ss <- 0.5
+rho_s2s <- 0.55
+rho_total <- (rho_tau * tau_sim1 * tau_sim2 +
+                rho_s2s * phi_s2s_sim1 * phi_s2s_sim2 +
+                rho_ss * phi_ss_sim1 * phi_ss_sim2) /
+  (sigma_tot1 * sigma_tot2)
 
 patchwork::wrap_plots(
   data.frame(mat_cor[,c(1,6)]) %>%
