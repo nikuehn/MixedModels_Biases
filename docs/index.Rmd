@@ -190,7 +190,8 @@ form <- Y ~ M1 + M2 + MlogR + logR + R + Fss + Frv + logVS +
 fit_inla <- inla(form, 
                  data = data_reg,
                  family="gaussian",
-                 control.family = list(hyper = prior_prec_phiSS)
+                 control.family = list(hyper = prior_prec_phiSS),
+                 quantiles = c(0.05,0.5,0.95)
 )
 
 sd_deltaS_inla <-fit_inla$summary.random$stat$sd
@@ -244,6 +245,27 @@ df <- data.frame(inla = 1/sqrt(fit_inla$summary.hyperpar$mean),
 knitr::kable(df, digits = 5, row.names = TRUE,
              caption = "Comparison of standard deviation estimates.")
 ```
+Now we compare credible intervals (for the Bayesian models) and confidence intervals (for `lmer`).
+For `lmer`, we calculate the profile confidence intervals, using function `confint`, while for the Bayesian credible intervals we take the 5% and 95% quantile of the posterior distribution.
+Since `inla` internally uses precisions for the scale parameter, we convert the quantiles (precision to standard devation is a monotonic transformation, so the quantiles do not change).
+We note that the interpretation of confidence intervals can be tricky [@Morey2016].
+The confidence and credible intervals agree quite well.
+
+``` {r example-comp-sd-ci}
+ci_lmer <- confint(fit_lmer, level = c(0.9))
+df <- data.frame(inla_q05 = 1/sqrt(fit_inla$summary.hyperpar[,'0.95quant']),
+                 inla_q95 = 1/sqrt(fit_inla$summary.hyperpar[,'0.05quant']),
+                 lmer_c05 = ci_lmer[c(3,2,1),1],
+                 lmer_c95 = ci_lmer[c(3,2,1),2],
+                 stan_q05 = colQuantiles(subset(as_draws_matrix(draws), variable = c('phi_ss','tau','phi_s2s')), 
+                                         probs = 0.05),
+                 stan_q95 = colQuantiles(subset(as_draws_matrix(draws), variable = c('phi_ss','tau','phi_s2s')), 
+                                         probs = 0.95),
+                 row.names = c('phi_ss','tau','phi_s2s'))
+knitr::kable(df, digits = 5, row.names = TRUE,
+             caption = "Comparison of standard deviation credible/confidence intervals.")
+```
+
 The coefficient estimates are also very close.
 
 ``` {r example-comp-coeff}
@@ -251,8 +273,24 @@ df <- data.frame(inla = fit_inla$summary.fixed$mean,
                  lmer = fixef(fit_lmer),
                  stan = colMeans(subset(as_draws_matrix(draws), variable = c('^c\\['), regex = TRUE)))
 knitr::kable(df, digits = 5, row.names = TRUE,
-             caption = "Comparison of standard coefficient estimates.")
+             caption = "Comparison of coefficient estimates.")
 ```
+
+As are the confidence and credible intervals of the fixed effects.
+
+``` {r example-comp-coeff-ci}
+df <- data.frame(inla_q05 = fit_inla$summary.fixed[,'0.05quant'],
+                 inla_q95 = fit_inla$summary.fixed[,'0.95quant'],
+                 lmer_c05 = ci_lmer[4:12,1],
+                 lmer_c95 = ci_lmer[4:12,2],
+                 stan_q05 = colQuantiles(subset(as_draws_matrix(draws), variable = c('^c\\['), regex = TRUE),
+                                         probs = 0.05),
+                 stan_q95 = colQuantiles(subset(as_draws_matrix(draws), variable = c('^c\\['), regex = TRUE),
+                                         probs = 0.95))
+knitr::kable(df, digits = 5, row.names = TRUE,
+             caption = "Comparison of coefficient credible/confidence intervals.")
+```
+
 
 Below we plot the standard deviations of the random effects (conditional standard deviations for `lmer`, standard deviations of the posterior distribution for the Bayesian models) against number of records per event/station.
 In general, they are similar between all three fits.
@@ -386,7 +424,7 @@ data_reg$y_sim <- dB_sim[eq] + dS_sim[stat] + dWS_sim
 Now we perform the linear mixed effects regression using `lmer`.
 We use maximum likelihood instead of restricted maximum likelihood in this case to show the equivalence of the calculations of standard deviations.
 In the paper, we also use Stan to estimate the random effects and standard deviations, but we omit this here to save time and space.
-As we have seen for the Italian data, we get very similar results sing `lmer` and Stan, ad this is also reflected by the results shown in the paper.
+As we have seen for the Italian data, we get very similar results using `lmer` and Stan, and this is also reflected by the results shown in the paper.
 Frequentist methods are still overwhelmingly used in GMM development, so it makes sense to focus on them here.
 
 ```{r sim1-lmer}
@@ -450,7 +488,7 @@ knitr::kable(df, digits = 5, row.names = TRUE,
 
 ```
 
-As we can see, the values from `lmer` and calculated according to Equation (4) agree for $\tau$ and $\phi_{S2S}$.
+As we can see, the values from `lmer` and the ones calculated according to Equation (4) agree for $\tau$ and $\phi_{S2S}$.
 For $\phi_{SS}$, there is a small discrepancy, since the conditional standard deviations are just an approximation.
 These values are also close to the true ones, while the standard deviations calculated from the point estimates are underestimating the true values.
 The differences is largest for $\phi_{S2S}$, since there are several stations with only few recordings and thus large conditional standard deviations.

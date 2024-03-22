@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "05 March, 2024, first published 14 September 2023."
+date: "22 March, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -195,7 +195,8 @@ form <- Y ~ M1 + M2 + MlogR + logR + R + Fss + Frv + logVS +
 fit_inla <- inla(form, 
                  data = data_reg,
                  family="gaussian",
-                 control.family = list(hyper = prior_prec_phiSS)
+                 control.family = list(hyper = prior_prec_phiSS),
+                 quantiles = c(0.05,0.5,0.95)
 )
 
 sd_deltaS_inla <-fit_inla$summary.random$stat$sd
@@ -245,10 +246,10 @@ fit_stan <- mod$sample(
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 68.8 seconds.
+## Chain 2 finished in 26.5 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 70.0 seconds.
+## Chain 1 finished in 27.0 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -258,14 +259,14 @@ fit_stan <- mod$sample(
 ## Chain 4 Iteration: 201 / 400 [ 50%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 71.8 seconds.
+## Chain 3 finished in 29.2 seconds.
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 84.1 seconds.
+## Chain 4 finished in 34.4 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 73.6 seconds.
-## Total execution time: 154.7 seconds.
+## Mean chain execution time: 29.3 seconds.
+## Total execution time: 61.7 seconds.
 ```
 
 ```r
@@ -300,6 +301,45 @@ Table: Comparison of standard deviation estimates.
 |phi_ss  | 0.20407| 0.20413| 0.20415|
 |tau     | 0.14141| 0.14327| 0.14436|
 |phi_s2s | 0.23341| 0.23365| 0.23314|
+Now we compare credible intervals (for the Bayesian models) and confidence intervals (for `lmer`).
+For `lmer`, we calculate the profile confidence intervals, using function `confint`, while for the Bayesian credible intervals we take the 5% and 95% quantile of the posterior distribution.
+Since `inla` internally uses precisions for the scale parameter, we convert the quantiles (precision to standard devation is a monotonic transformation, so the quantiles do not change).
+We note that the interpretation of confidence intervals can be tricky [@Morey2016].
+The confidence and credible intervals agree quite well.
+
+
+```r
+ci_lmer <- confint(fit_lmer, level = c(0.9))
+```
+
+```
+## Computing profile confidence intervals ...
+```
+
+```r
+df <- data.frame(inla_q05 = 1/sqrt(fit_inla$summary.hyperpar[,'0.95quant']),
+                 inla_q95 = 1/sqrt(fit_inla$summary.hyperpar[,'0.05quant']),
+                 lmer_c05 = ci_lmer[c(3,2,1),1],
+                 lmer_c95 = ci_lmer[c(3,2,1),2],
+                 stan_q05 = colQuantiles(subset(as_draws_matrix(draws), variable = c('phi_ss','tau','phi_s2s')), 
+                                         probs = 0.05),
+                 stan_q95 = colQuantiles(subset(as_draws_matrix(draws), variable = c('phi_ss','tau','phi_s2s')), 
+                                         probs = 0.95),
+                 row.names = c('phi_ss','tau','phi_s2s'))
+knitr::kable(df, digits = 5, row.names = TRUE,
+             caption = "Comparison of standard deviation credible/confidence intervals.")
+```
+
+
+
+Table: Comparison of standard deviation credible/confidence intervals.
+
+|        | inla_q05| inla_q95| lmer_c05| lmer_c95| stan_q05| stan_q95|
+|:-------|--------:|--------:|--------:|--------:|--------:|--------:|
+|phi_ss  |  0.20023|  0.20800|  0.20025|  0.20798|  0.20041|  0.20800|
+|tau     |  0.12580|  0.16383|  0.12404|  0.15880|  0.12719|  0.16362|
+|phi_s2s |  0.22163|  0.24542|  0.22216|  0.24544|  0.22238|  0.24503|
+
 The coefficient estimates are also very close.
 
 
@@ -308,12 +348,12 @@ df <- data.frame(inla = fit_inla$summary.fixed$mean,
                  lmer = fixef(fit_lmer),
                  stan = colMeans(subset(as_draws_matrix(draws), variable = c('^c\\['), regex = TRUE)))
 knitr::kable(df, digits = 5, row.names = TRUE,
-             caption = "Comparison of standard coefficient estimates.")
+             caption = "Comparison of coefficient estimates.")
 ```
 
 
 
-Table: Comparison of standard coefficient estimates.
+Table: Comparison of coefficient estimates.
 
 |            |     inla|     lmer|     stan|
 |:-----------|--------:|--------:|--------:|
@@ -326,6 +366,39 @@ Table: Comparison of standard coefficient estimates.
 |Fss         |  0.11563|  0.11583|  0.11048|
 |Frv         | -0.00142| -0.00107| -0.00363|
 |logVS       | -0.42206| -0.42193| -0.42216|
+
+As are the confidence and credible intervals of the fixed effects.
+
+
+```r
+df <- data.frame(inla_q05 = fit_inla$summary.fixed[,'0.05quant'],
+                 inla_q95 = fit_inla$summary.fixed[,'0.95quant'],
+                 lmer_c05 = ci_lmer[4:12,1],
+                 lmer_c95 = ci_lmer[4:12,2],
+                 stan_q05 = colQuantiles(subset(as_draws_matrix(draws), variable = c('^c\\['), regex = TRUE),
+                                         probs = 0.05),
+                 stan_q95 = colQuantiles(subset(as_draws_matrix(draws), variable = c('^c\\['), regex = TRUE),
+                                         probs = 0.95))
+knitr::kable(df, digits = 5, row.names = TRUE,
+             caption = "Comparison of coefficient credible/confidence intervals.")
+```
+
+
+
+Table: Comparison of coefficient credible/confidence intervals.
+
+|            | inla_q05| inla_q95| lmer_c05| lmer_c95| stan_q05| stan_q95|
+|:-----------|--------:|--------:|--------:|--------:|--------:|--------:|
+|(Intercept) |  3.32703|  3.49060|  3.32740|  3.49023|  3.33255|  3.48558|
+|M1          |  0.13983|  0.26688|  0.14014|  0.26647|  0.14216|  0.26619|
+|M2          | -0.11604|  0.12140| -0.11532|  0.12070| -0.09652|  0.12896|
+|MlogR       |  0.26484|  0.31024|  0.26484|  0.31019|  0.26520|  0.31024|
+|logR        | -1.44813| -1.34942| -1.44810| -1.34952| -1.44679| -1.34740|
+|R           | -0.00342| -0.00275| -0.00342| -0.00275| -0.00343| -0.00278|
+|Fss         |  0.05622|  0.17525|  0.05652|  0.17486|  0.04949|  0.17084|
+|Frv         | -0.05706|  0.05456| -0.05676|  0.05421| -0.05467|  0.04708|
+|logVS       | -0.49610| -0.34807| -0.49600| -0.34820| -0.49422| -0.34680|
+
 
 Below we plot the standard deviations of the random effects (conditional standard deviations for `lmer`, standard deviations of the posterior distribution for the Bayesian models) against number of records per event/station.
 In general, they are similar between all three fits.
@@ -507,7 +580,7 @@ data_reg$y_sim <- dB_sim[eq] + dS_sim[stat] + dWS_sim
 Now we perform the linear mixed effects regression using `lmer`.
 We use maximum likelihood instead of restricted maximum likelihood in this case to show the equivalence of the calculations of standard deviations.
 In the paper, we also use Stan to estimate the random effects and standard deviations, but we omit this here to save time and space.
-As we have seen for the Italian data, we get very similar results sing `lmer` and Stan, ad this is also reflected by the results shown in the paper.
+As we have seen for the Italian data, we get very similar results using `lmer` and Stan, and this is also reflected by the results shown in the paper.
 Frequentist methods are still overwhelmingly used in GMM development, so it makes sense to focus on them here.
 
 
@@ -610,7 +683,7 @@ Table: Comparison of standard deviation estimates.
 |sd(point estimate) | 0.35544| 0.38813| 0.47214|
 |sd(sample)         | 0.44312| 0.41292| 0.50019|
 
-As we can see, the values from `lmer` and calculated according to Equation (4) agree for $\tau$ and $\phi_{S2S}$.
+As we can see, the values from `lmer` and the ones calculated according to Equation (4) agree for $\tau$ and $\phi_{S2S}$.
 For $\phi_{SS}$, there is a small discrepancy, since the conditional standard deviations are just an approximation.
 These values are also close to the true ones, while the standard deviations calculated from the point estimates are underestimating the true values.
 The differences is largest for $\phi_{S2S}$, since there are several stations with only few recordings and thus large conditional standard deviations.
@@ -2301,10 +2374,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 32.7 seconds.
+## Chain 1 finished in 35.6 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 33.1 seconds.
+## Chain 2 finished in 36.0 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2315,13 +2388,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 40.0 seconds.
+## Chain 4 finished in 39.4 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 41.9 seconds.
+## Chain 3 finished in 41.7 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 36.9 seconds.
-## Total execution time: 74.9 seconds.
+## Mean chain execution time: 38.2 seconds.
+## Total execution time: 77.5 seconds.
 ```
 
 ```r
@@ -2329,7 +2402,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-1-81901b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-2-81901b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-3-81901b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-4-81901b.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-1-8208b1.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-2-8208b1.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-3-8208b1.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-4-8208b1.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2349,7 +2422,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-1-81901b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-2-81901b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-3-81901b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpvdAjQS/gmm_partition_wvar_corr-202403051733-4-81901b.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-1-8208b1.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-2-8208b1.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-3-8208b1.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-4-8208b1.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
