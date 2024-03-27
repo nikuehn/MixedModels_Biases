@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "22 March, 2024, first published 14 September 2023."
+date: "27 March, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -2374,10 +2374,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 35.6 seconds.
+## Chain 1 finished in 35.8 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 36.0 seconds.
+## Chain 2 finished in 36.6 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2388,13 +2388,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 39.4 seconds.
+## Chain 4 finished in 37.0 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 41.7 seconds.
+## Chain 3 finished in 39.5 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 38.2 seconds.
-## Total execution time: 77.5 seconds.
+## Mean chain execution time: 37.2 seconds.
+## Total execution time: 75.6 seconds.
 ```
 
 ```r
@@ -2402,7 +2402,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-1-8208b1.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-2-8208b1.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-3-8208b1.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-4-8208b1.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-1-8108ea.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-2-8108ea.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-3-8108ea.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-4-8108ea.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2422,7 +2422,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-1-8208b1.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-2-8208b1.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-3-8208b1.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAkuaKi/gmm_partition_wvar_corr-202403221351-4-8208b1.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-1-8108ea.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-2-8108ea.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-3-8108ea.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-4-8108ea.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -3228,6 +3228,11 @@ rho_total <- (rho_tau * tau_sim1 * tau_sim2 +
                 rho_ss * phi_ss_sim1 * phi_ss_sim2) /
   (sigma_tot1 * sigma_tot2)
 
+rho_total_sample <- (mat_cor_sample[,2] * tau_sim1 * tau_sim2 + 
+                       mat_cor_sample[,1] * phi_s2s_sim1 * phi_s2s_sim2 + 
+                       mat_cor_sample[,3] * phi_ss_sim1 * phi_ss_sim2) /
+  (sigma_tot1 * sigma_tot2)
+
 patchwork::wrap_plots(
   data.frame(mat_cor[,c(1,6)]) %>%
     pivot_longer(everything()) %>%
@@ -3281,6 +3286,8 @@ patchwork::wrap_plots(
   data.frame(mat_cor[,c(4,5,9)]) %>%
     pivot_longer(everything()) %>%
     ggplot() +
+    geom_density(data.frame(x = rho_total_sample),
+                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
     geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
     geom_vline(xintercept = rho_total, linewidth = lw) +
     labs(x = TeX('$\\rho_{total}$')) +
@@ -3297,6 +3304,40 @@ patchwork::wrap_plots(
 <img src="pictures/res-sim6-corrre-high-1.png" width="100%" />
 
 
+```r
+func_ci <- function(cor, n, rho) {
+  r_fisher <- log((1+cor) / (1-cor)) / 2
+  r_lb <- r_fisher - (1.64 /sqrt(n - 3))
+  r_ub <- r_fisher + (1.64 /sqrt(n - 3))
+  
+  cor_lme_lb <- (exp(2 * r_lb) - 1) / (exp(2 * r_lb) + 1)
+  cor_lme_ub <- (exp(2 * r_ub) - 1) / (exp(2 * r_ub) + 1)
+  
+  
+  return(sum(cor_lme_lb <= rho & cor_lme_ub >= rho) / length(cor))
+}
+
+n_eq <- 274
+n_stat <- 1519
+n_rec <- 12482
+knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), func_ci(mat_cor[,1], n_stat, rho_s2s)),
+                        dB = c(func_ci(mat_cor_sample[,2], n_eq, rho_tau), func_ci(mat_cor[,2], n_eq, rho_tau)),
+                        dWS = c(func_ci(mat_cor_sample[,3], n_rec, rho_ss), func_ci(mat_cor[,3], n_rec, rho_ss)),
+                        row.names = c('simulated','estimated')),
+             row.names = TRUE,
+             caption = "Fraction of correlation coefficiets inside 90% confidence interval."
+             )
+```
+
+
+
+Table: Fraction of correlation coefficiets inside 90% confidence interval.
+
+|          |    dS|    dB|   dWS|
+|:---------|-----:|-----:|-----:|
+|simulated | 0.925| 0.895| 0.890|
+|estimated | 0.360| 0.860| 0.785|
+
 
 ```r
 load(file.path('./Git/MixedModels_Biases/', 'results',
@@ -3308,6 +3349,11 @@ rho_s2s <- 0.55
 rho_total <- (rho_tau * tau_sim1 * tau_sim2 +
                 rho_s2s * phi_s2s_sim1 * phi_s2s_sim2 +
                 rho_ss * phi_ss_sim1 * phi_ss_sim2) /
+  (sigma_tot1 * sigma_tot2)
+
+rho_total_sample <- (mat_cor_sample[,2] * tau_sim1 * tau_sim2 + 
+                       mat_cor_sample[,1] * phi_s2s_sim1 * phi_s2s_sim2 + 
+                       mat_cor_sample[,3] * phi_ss_sim1 * phi_ss_sim2) /
   (sigma_tot1 * sigma_tot2)
 
 patchwork::wrap_plots(
@@ -3382,6 +3428,26 @@ patchwork::wrap_plots(
 
 <img src="pictures/res-sim6-corrre-low-1.png" width="100%" />
 
+
+```r
+knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), func_ci(mat_cor[,1], n_stat, rho_s2s)),
+                        dB = c(func_ci(mat_cor_sample[,2], n_eq, rho_tau), func_ci(mat_cor[,2], n_eq, rho_tau)),
+                        dWS = c(func_ci(mat_cor_sample[,3], n_rec, rho_ss), func_ci(mat_cor[,3], n_rec, rho_ss)),
+                        row.names = c('simulated','estimated')),
+             row.names = TRUE,
+             caption = "Fraction of correlation coefficiets inside 90% confidence interval."
+             )
+```
+
+
+
+Table: Fraction of correlation coefficiets inside 90% confidence interval.
+
+|          |    dS|    dB|  dWS|
+|:---------|-----:|-----:|----:|
+|simulated | 0.925| 0.895| 0.88|
+|estimated | 0.775| 0.895| 0.88|
+
 ## Correlations with Stress Drop
 
 
@@ -3410,6 +3476,24 @@ df_res_cor %>% pivot_longer(c(cor_sim, cor_lme, cor_mean)) %>%
 ```
 
 <img src="pictures/res-sim4-corr-all-1.png" width="50%" />
+
+
+```r
+knitr::kable(data.frame(simulated = func_ci(df_res_cor$cor_sim, n_eq, rho),
+                        Stan = (sum(df_res_cor$cor_q05 <= rho & df_res_cor$cor_q95 >= rho)) / nrow(df_res_cor),
+                        lmer = func_ci(df_res_cor$cor_lme, n_eq, rho)),
+             row.names = FALSE,
+             caption = "Fraction of correlation coefficiets inside 90% confidence interval."
+             )
+```
+
+
+
+Table: Fraction of correlation coefficiets inside 90% confidence interval.
+
+| simulated| Stan| lmer|
+|---------:|----:|----:|
+|      0.94| 0.98| 0.52|
 
 
 ## Spatial Correlations of Site Terms
