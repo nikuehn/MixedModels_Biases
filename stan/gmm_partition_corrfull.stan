@@ -55,4 +55,10 @@ generated quantities {
   matrix[NP,NP] C_rec = multiply_lower_tri_self_transpose(L_rec);
   matrix[NP,NP] C_eq = multiply_lower_tri_self_transpose(L_eq);
   matrix[NP,NP] C_stat = multiply_lower_tri_self_transpose(L_stat);
+
+  real rho_total;
+  if(NP ==2)
+    rho_total = (prod(phi_ss) * C_rec[1,2] + prod(phi_s2s) * C_stat[1,2] + prod(tau) * C_eq[1,2]) /
+                (sqrt(square(phi_ss[1]) + square(phi_s2s[1]) + square(tau[1])) *
+                 sqrt(square(phi_ss[2]) + square(phi_s2s[2]) + square(tau[2])));
 }
