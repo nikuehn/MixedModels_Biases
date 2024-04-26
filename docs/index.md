@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "27 March, 2024, first published 14 September 2023."
+date: "26 April, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -483,6 +483,112 @@ print(c(sum((arm::se.ranef(fit_lmer)$stat)^2 - diag(V)[1:n_stat]),
 ```
 ## [1] 7.350891e-16 2.257309e-16
 ```
+
+## Building Intution
+
+As stated before, the estimated value of the standard deviation is the sum of the variance of the point estimates plus the average conditional variance.
+It can be tempting to think that the second term, which is the average uncertainty of the random effect, is related to the uncertainty of the estimate of the standard deviation, but that is not the case.
+To illustrate this point, we simulate some data for a simple radom effects model with one grouping variable.
+We look at two cases, one wherewe have many groups, but few observations per group, and one where we have a small number of groups, but each with many observations.
+
+
+```r
+set.seed(1701)
+sigma_gr <- 0.5 # group-level standard devation
+sigma <- 0.7 # noise standard deviation
+
+n_gr <- 500 # number of groups
+n_rep <- 3 # number of observations in each group
+
+gr <- rep(1:n_gr, each = n_rep) # group indicator
+
+# sample data from normal distributions and combine
+df_sim <- data.frame(y_sim = rnorm(n_gr, sd = sigma_gr)[gr] + rnorm(length(gr), sd = sigma),
+                     gr= gr)
+
+# fit random effects model and calculate confidence interval
+fit_sim <- lmer(y_sim ~ (1 | gr), df_sim) # fit model
+ci1 <- confint(fit_sim, level = 0.9)
+```
+
+```
+## Computing profile confidence intervals ...
+```
+
+```r
+# extract random effects and uncertainties (conditional mode and conditional standard deviation)
+# all conditional standard deviations should be the same
+tmp <- as.data.frame(ranef(fit_sim))
+dG <- tmp[tmp$grpvar == 'gr','condval']
+sd_dG <- tmp[tmp$grpvar == 'gr','condsd']
+
+
+# repeat the exercise, but with a different number ofgroups and observations per group
+n_gr2 <- 15
+n_rep2 <- 100
+
+gr2 <- rep(1:n_gr2, each = n_rep2)
+
+df_sim2 <- data.frame(y_sim = rnorm(n_gr2, sd = sigma_gr)[gr2] + rnorm(length(gr2), sd = sigma),
+                     gr= gr2)
+n_sim2 <- nrow(df_sim2)
+
+fit_sim2 <- lmer(y_sim ~ (1 | gr), df_sim2)
+ci2 <- confint(fit_sim2, level = 0.9)
+```
+
+```
+## Computing profile confidence intervals ...
+```
+
+```r
+tmp <- as.data.frame(ranef(fit_sim2))
+dG2 <- tmp[tmp$grpvar == 'gr','condval']
+sd_dG2 <- tmp[tmp$grpvar == 'gr','condsd']
+
+print(VarCorr(fit_sim))
+```
+
+```
+##  Groups   Name        Std.Dev.
+##  gr       (Intercept) 0.50489 
+##  Residual             0.73133
+```
+
+```r
+print(VarCorr(fit_sim2))
+```
+
+```
+##  Groups   Name        Std.Dev.
+##  gr       (Intercept) 0.62455 
+##  Residual             0.68885
+```
+
+As we can see, for the first case the standard deviations are well estimated, while the group-level standard deviation in the second case is off.
+The reason is that we only have 15 groups, which leads to a very uncertain estimate.
+This is reflected in the confidence interval, shown below, which is very wide for the second case.
+On the other hand, the average conditional variance is small, due to the fact that we have many observations per group.
+
+
+```r
+df = data.frame(cbind(rowDiffs(ci1), rowDiffs(ci2), 
+                      c(sum(sd_dG^2)/n_gr, NA, NA),
+                      c(sum(sd_dG2^2)/n_gr2, NA, NA))) %>%
+  set_names(c('X95_1','X95_2','avg_var_1','avg_var_2'))
+knitr::kable(df, digits = 5, row.names = TRUE,
+             caption = "90% confidence intervals for estimated parameters, for case 1 (large number of groups) and case 2 (small number of groups).")
+```
+
+
+
+Table: 90% confidence intervals for estimated parameters, for case 1 (large number of groups) and case 2 (small number of groups).
+
+|            |   X95_1|   X95_2| avg_var_1| avg_var_2|
+|:-----------|-------:|-------:|---------:|---------:|
+|.sig01      | 0.09322| 0.38779|   0.10491|   0.00469|
+|.sigma      | 0.05384| 0.04161|        NA|        NA|
+|(Intercept) | 0.09687| 0.53976|        NA|        NA|
 
 # Simulations using CB14 Data
 
@@ -2374,10 +2480,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 35.8 seconds.
+## Chain 1 finished in 128.2 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 36.6 seconds.
+## Chain 2 finished in 128.9 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2388,13 +2494,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 37.0 seconds.
+## Chain 4 finished in 93.1 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 39.5 seconds.
+## Chain 3 finished in 97.3 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 37.2 seconds.
-## Total execution time: 75.6 seconds.
+## Mean chain execution time: 111.9 seconds.
+## Total execution time: 225.9 seconds.
 ```
 
 ```r
@@ -2402,7 +2508,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-1-8108ea.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-2-8108ea.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-3-8108ea.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-4-8108ea.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-1-81cf1f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-2-81cf1f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-3-81cf1f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-4-81cf1f.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2422,7 +2528,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-1-8108ea.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-2-8108ea.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-3-8108ea.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpQOhTDT/gmm_partition_wvar_corr-202403271437-4-8108ea.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-1-81cf1f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-2-81cf1f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-3-81cf1f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-4-81cf1f.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
