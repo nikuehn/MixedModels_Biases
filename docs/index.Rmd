@@ -25,8 +25,9 @@ root.dir = '/Users/nico/GROUNDMOTION/PROJECTS/RESID_VAR/')
 
 # Introduction
 
-This page provides code for the simulations shown in ``Potential Biases in Empirical Ground-Motion Models by focusing on Point Estimates of Random Effects'', which highlights some biases that can occur when using point estimates of random effects/residuals in mixed effects ground-motion models.
+This page provides code for the simulations shown in ``Use of Simulation to Identify Potential Biases in Mixed-Effects Ground-Motion Models and Variance Components'', which highlights some biases that can occur when using point estimates of random effects/residuals in mixed effects ground-motion models.
 For details, see the paper.
+This repository is archived under < https://doi.org/10.5281/zenodo.10822835>.
 
 We use simulations from different models and/or using different data sets to illustrate potential biases.
 In particular, standard deviations are underestimated when they are calculated from point estimates of random effects/residuals.

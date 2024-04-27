@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "26 April, 2024, first published 14 September 2023."
+date: "27 April, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -21,8 +21,9 @@ bibliography: /Users/nico/BIBLIOGRAPHY/BIBTEX/references.bib
 
 # Introduction
 
-This page provides code for the simulations shown in ``Potential Biases in Empirical Ground-Motion Models by focusing on Point Estimates of Random Effects'', which highlights some biases that can occur when using point estimates of random effects/residuals in mixed effects ground-motion models.
+This page provides code for the simulations shown in ``Use of Simulation to Identify Potential Biases in Mixed-Effects Ground-Motion Models and Variance Components'', which highlights some biases that can occur when using point estimates of random effects/residuals in mixed effects ground-motion models.
 For details, see the paper.
+This repository is archived under < https://doi.org/10.5281/zenodo.10822835>.
 
 We use simulations from different models and/or using different data sets to illustrate potential biases.
 In particular, standard deviations are underestimated when they are calculated from point estimates of random effects/residuals.
@@ -2480,10 +2481,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 128.2 seconds.
+## Chain 1 finished in 44.9 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 128.9 seconds.
+## Chain 2 finished in 45.5 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2494,13 +2495,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 93.1 seconds.
+## Chain 4 finished in 50.5 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 97.3 seconds.
+## Chain 3 finished in 53.3 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 111.9 seconds.
-## Total execution time: 225.9 seconds.
+## Mean chain execution time: 48.6 seconds.
+## Total execution time: 98.6 seconds.
 ```
 
 ```r
@@ -2508,7 +2509,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-1-81cf1f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-2-81cf1f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-3-81cf1f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-4-81cf1f.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-1-80ccfe.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-2-80ccfe.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-3-80ccfe.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-4-80ccfe.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2528,7 +2529,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-1-81cf1f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-2-81cf1f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-3-81cf1f.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpsQ6Ccr/gmm_partition_wvar_corr-202404261131-4-81cf1f.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-1-80ccfe.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-2-80ccfe.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-3-80ccfe.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-4-80ccfe.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
