@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "27 April, 2024, first published 14 September 2023."
+date: "29 April, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -578,18 +578,80 @@ df = data.frame(cbind(rowDiffs(ci1), rowDiffs(ci2),
                       c(sum(sd_dG2^2)/n_gr2, NA, NA))) %>%
   set_names(c('X95_1','X95_2','avg_var_1','avg_var_2'))
 knitr::kable(df, digits = 5, row.names = TRUE,
-             caption = "90% confidence intervals for estimated parameters, for case 1 (large number of groups) and case 2 (small number of groups).")
+             caption = "90% confidence intervals for estimated parameters, for case 1 (large number of groups)
+             and case 2 (small number of groups).")
 ```
 
 
 
-Table: 90% confidence intervals for estimated parameters, for case 1 (large number of groups) and case 2 (small number of groups).
+Table: 90% confidence intervals for estimated parameters, for case 1 (large number of groups)
+             and case 2 (small number of groups).
 
 |            |   X95_1|   X95_2| avg_var_1| avg_var_2|
 |:-----------|-------:|-------:|---------:|---------:|
 |.sig01      | 0.09322| 0.38779|   0.10491|   0.00469|
 |.sigma      | 0.05384| 0.04161|        NA|        NA|
 |(Intercept) | 0.09687| 0.53976|        NA|        NA|
+
+Nevertheless, the uncertainty about the values of the random effets leads to uncertainty about the value of the standard deviation.
+We can sample from the conditional distribution of the random effects, and calculate the standard deviation of the sampled values.
+If we repeat his multiple times, we get multiple values of the standard devation, and we could imagine that we an use these samples to get some sort of uncertainty estmate of the standard deviation.
+
+Below, we sample 10,000 different standard deviations, calculate the 5% and 95% quantile of the sampled values, and compare it to the values calculated with `confint`.
+The values calculated from sampling are much narrower than the ones calculated with `confint`.
+In the paper we show that the values calculated with `confint` are well calibrated and provide a good assessment of uncertainty.
+
+
+```r
+n_rep <- 10000
+sample_sd <- rep(NA, n_rep)
+sample_sd2 <- rep(NA, n_rep)
+for(i in 1:n_rep) {
+  sample_sd[i] <- sd(rnorm(n_gr, mean = dG, sd = sd_dG))
+  sample_sd2[i] <- sd(rnorm(n_gr2, mean = dG2, sd = sd_dG2))
+}
+
+df <- data.frame(rbind(c(ci1[1,], ci2[1,]),
+      c(quantile(sample_sd, probs = c(0.05,0.95)), quantile(sample_sd2, probs = c(0.05,0.95)))
+)) %>% set_names('q0.05_1','q0.95_1','q0.05_2','q0.95_2')
+row.names(df) <- c('confint','sample')
+knitr::kable(df, digits = 5, row.names = TRUE,
+             caption = "Comparison of uncertainty from confint and sampling.")
+```
+
+
+
+Table: Comparison of uncertainty from confint and sampling.
+
+|        | q0.05_1| q0.95_1| q0.05_2| q0.95_2|
+|:-------|-------:|-------:|-------:|-------:|
+|confint | 0.45808| 0.55130| 0.45683| 0.84462|
+|sample  | 0.48355| 0.52637| 0.59398| 0.65403|
+
+Blow, we shw plots of the densities of the sampled standard deviations, together wth the true (solid) value of `sigma_gr`, the value estimated by `lmer` (dashed), and the standard deviations of the conditional modes of the random effects.
+For both data sets, the standard deviation from the conditional modes is underestimatng the value estimated by `lmer`, but is much closer for the second data set.
+Ths is due to the large number of observations per group in this case.
+For both data sets, the sampled standard deviations lie around the value from `lmer`.
+
+
+```r
+p1 <- data.frame(sd = sample_sd) %>%
+  ggplot() +
+  geom_density(aes(x=sd), linewidth = lw) +
+  geom_vline(xintercept = c(sigma_gr, as.data.frame(VarCorr(fit_sim))$sdcor[1], sd(dG)),
+             linetype = c('solid','dashed','dotted'), linewidth = lw) +
+  labs(title = 'data 1', x = 'sigma_gr')
+
+p2 <- data.frame(sd = sample_sd2) %>%
+  ggplot() +
+  geom_density(aes(x=sd), linewidth = lw) +
+  geom_vline(xintercept = c(sigma_gr, as.data.frame(VarCorr(fit_sim2))$sdcor[1], sd(dG2)),
+             linetype = c('solid','dashed','dotted'), linewidth = lw) +
+  labs(title = 'data 2', x = 'sigma_gr')
+patchwork::wrap_plots(p1, p2)
+```
+
+<img src="pictures/intuition-plot-1.png" width="100%" />
 
 # Simulations using CB14 Data
 
@@ -2481,10 +2543,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 44.9 seconds.
+## Chain 1 finished in 49.8 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 45.5 seconds.
+## Chain 2 finished in 50.9 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2495,13 +2557,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 50.5 seconds.
+## Chain 4 finished in 93.7 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 53.3 seconds.
+## Chain 3 finished in 97.3 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 48.6 seconds.
-## Total execution time: 98.6 seconds.
+## Mean chain execution time: 72.9 seconds.
+## Total execution time: 147.4 seconds.
 ```
 
 ```r
@@ -2509,7 +2571,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-1-80ccfe.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-2-80ccfe.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-3-80ccfe.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-4-80ccfe.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-1-814c79.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-2-814c79.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-3-814c79.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-4-814c79.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2529,7 +2591,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-1-80ccfe.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-2-80ccfe.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-3-80ccfe.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp2xLeIF/gmm_partition_wvar_corr-202404271503-4-80ccfe.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-1-814c79.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-2-814c79.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-3-814c79.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-4-814c79.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""

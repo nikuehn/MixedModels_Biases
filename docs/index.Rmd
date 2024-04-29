@@ -426,7 +426,55 @@ df = data.frame(cbind(rowDiffs(ci1), rowDiffs(ci2),
                       c(sum(sd_dG2^2)/n_gr2, NA, NA))) %>%
   set_names(c('X95_1','X95_2','avg_var_1','avg_var_2'))
 knitr::kable(df, digits = 5, row.names = TRUE,
-             caption = "90% confidence intervals for estimated parameters, for case 1 (large number of groups) and case 2 (small number of groups).")
+             caption = "90% confidence intervals for estimated parameters, for case 1 (large number of groups)
+             and case 2 (small number of groups).")
+```
+
+Nevertheless, the uncertainty about the values of the random effets leads to uncertainty about the value of the standard deviation.
+We can sample from the conditional distribution of the random effects, and calculate the standard deviation of the sampled values.
+If we repeat his multiple times, we get multiple values of the standard devation, and we could imagine that we an use these samples to get some sort of uncertainty estmate of the standard deviation.
+
+Below, we sample 10,000 different standard deviations, calculate the 5% and 95% quantile of the sampled values, and compare it to the values calculated with `confint`.
+The values calculated from sampling are much narrower than the ones calculated with `confint`.
+In the paper we show that the values calculated with `confint` are well calibrated and provide a good assessment of uncertainty.
+
+``` {r intuition-mc}
+n_rep <- 10000
+sample_sd <- rep(NA, n_rep)
+sample_sd2 <- rep(NA, n_rep)
+for(i in 1:n_rep) {
+  sample_sd[i] <- sd(rnorm(n_gr, mean = dG, sd = sd_dG))
+  sample_sd2[i] <- sd(rnorm(n_gr2, mean = dG2, sd = sd_dG2))
+}
+
+df <- data.frame(rbind(c(ci1[1,], ci2[1,]),
+      c(quantile(sample_sd, probs = c(0.05,0.95)), quantile(sample_sd2, probs = c(0.05,0.95)))
+)) %>% set_names('q0.05_1','q0.95_1','q0.05_2','q0.95_2')
+row.names(df) <- c('confint','sample')
+knitr::kable(df, digits = 5, row.names = TRUE,
+             caption = "Comparison of uncertainty from confint and sampling.")
+```
+
+Blow, we shw plots of the densities of the sampled standard deviations, together wth the true (solid) value of `sigma_gr`, the value estimated by `lmer` (dashed), and the standard deviations of the conditional modes of the random effects.
+For both data sets, the standard deviation from the conditional modes is underestimatng the value estimated by `lmer`, but is much closer for the second data set.
+Ths is due to the large number of observations per group in this case.
+For both data sets, the sampled standard deviations lie around the value from `lmer`.
+
+``` {r intuition-plot, out.width = '100%', fig.width=16}
+p1 <- data.frame(sd = sample_sd) %>%
+  ggplot() +
+  geom_density(aes(x=sd), linewidth = lw) +
+  geom_vline(xintercept = c(sigma_gr, as.data.frame(VarCorr(fit_sim))$sdcor[1], sd(dG)),
+             linetype = c('solid','dashed','dotted'), linewidth = lw) +
+  labs(title = 'data 1', x = 'sigma_gr')
+
+p2 <- data.frame(sd = sample_sd2) %>%
+  ggplot() +
+  geom_density(aes(x=sd), linewidth = lw) +
+  geom_vline(xintercept = c(sigma_gr, as.data.frame(VarCorr(fit_sim2))$sdcor[1], sd(dG2)),
+             linetype = c('solid','dashed','dotted'), linewidth = lw) +
+  labs(title = 'data 2', x = 'sigma_gr')
+patchwork::wrap_plots(p1, p2)
 ```
 
 # Simulations using CB14 Data
