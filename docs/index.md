@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "29 April, 2024, first published 14 September 2023."
+date: "02 May, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -52,13 +52,13 @@ V &= \phi_{SS}^2 \mathbf{\Lambda} \left(\mathbf{\Lambda}^T \mathbf{Z}^T \mathbf{
 \end{aligned}
 $$
 where $\mathbf{\Lambda}$ is the relative covariance factor [@Bates2015].
-If this uncertainty is ignored, biases can occur, as we deomstrate throughut this page.
+If this uncertainty is ignored, biases can occur, as we deomstrate throughout this page.
 In particular, the variances of the random effects are calculated as (example for $\tau$)
 $$
 \hat{\tau}^2 = \frac{1}{N_E}\sum_{i = 1}^{N_E} \widehat{\delta B}_i^2 + \frac{1}{N_E}\sum_{i = 1}^{N_E} \psi(\widehat{\delta B}_i)^2 
 $$
 which is the sum of the variance of the point estimates plus the average conditional variance.
-Hence, just esimating the variance (or standard deviation) of the point estimates will lead to an underestmation.
+Hence, just estimating the variance (or standard deviation) of the point estimates will lead to an underestimation.
 
 ## Set up
 
@@ -632,6 +632,8 @@ Blow, we shw plots of the densities of the sampled standard deviations, together
 For both data sets, the standard deviation from the conditional modes is underestimatng the value estimated by `lmer`, but is much closer for the second data set.
 Ths is due to the large number of observations per group in this case.
 For both data sets, the sampled standard deviations lie around the value from `lmer`.
+We also show the 90% confidence interval from `confint` in red.
+These intervals are much wider than the sampled values.
 
 
 ```r
@@ -640,6 +642,7 @@ p1 <- data.frame(sd = sample_sd) %>%
   geom_density(aes(x=sd), linewidth = lw) +
   geom_vline(xintercept = c(sigma_gr, as.data.frame(VarCorr(fit_sim))$sdcor[1], sd(dG)),
              linetype = c('solid','dashed','dotted'), linewidth = lw) +
+  geom_vline(xintercept = ci1[1,], color = 'red', linewidth = lw) +
   labs(title = 'data 1', x = 'sigma_gr')
 
 p2 <- data.frame(sd = sample_sd2) %>%
@@ -647,6 +650,7 @@ p2 <- data.frame(sd = sample_sd2) %>%
   geom_density(aes(x=sd), linewidth = lw) +
   geom_vline(xintercept = c(sigma_gr, as.data.frame(VarCorr(fit_sim2))$sdcor[1], sd(dG2)),
              linetype = c('solid','dashed','dotted'), linewidth = lw) +
+  geom_vline(xintercept = ci2[1,], color = 'red', linewidth = lw) +
   labs(title = 'data 2', x = 'sigma_gr')
 patchwork::wrap_plots(p1, p2)
 ```
@@ -2543,10 +2547,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 49.8 seconds.
+## Chain 1 finished in 87.0 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 50.9 seconds.
+## Chain 2 finished in 88.6 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2557,13 +2561,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 93.7 seconds.
+## Chain 4 finished in 79.3 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 97.3 seconds.
+## Chain 3 finished in 84.0 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 72.9 seconds.
-## Total execution time: 147.4 seconds.
+## Mean chain execution time: 84.8 seconds.
+## Total execution time: 171.7 seconds.
 ```
 
 ```r
@@ -2571,7 +2575,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-1-814c79.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-2-814c79.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-3-814c79.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-4-814c79.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-1-80b333.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-2-80b333.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-3-80b333.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-4-80b333.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2591,7 +2595,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-1-814c79.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-2-814c79.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-3-814c79.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmplon6Nr/gmm_partition_wvar_corr-202404290942-4-814c79.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-1-80b333.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-2-80b333.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-3-80b333.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-4-80b333.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
