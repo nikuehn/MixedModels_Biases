@@ -1585,6 +1585,21 @@ patchwork::wrap_plots(
 ```
 
 
+In the plot above, the posterior distribution of the total correlation coefficient is calclatedform the posterior samples of the standard deviations and correlatio coefficients, and thus also accounts for uncertainty of the standard devations.
+We can compare this with a calculation that uses a point estimate for the standard deviations.
+In this case, the uncertainty of the total correlation is slightly lower, but the difference is small and shouldn't matter in practice.
+
+
+``` {r sim2-corr-stan-rhototal2}
+rho_total_stan2 <- (mean(rv$phi_ss[1]) * mean(rv$phi_ss[2]) * rv$rho_rec +
+                     mean(rv$phi_s2s[1]) * mean(rv$phi_s2s[2]) * rv$rho_stat +
+                     mean(rv$tau[1]) * mean(rv$tau[2]) * rv$rho_eq) /
+  (sqrt(mean(rv$phi_ss[1])^2 + mean(rv$phi_s2s[1])^2 + mean(rv$tau[1])^2) *
+     sqrt(mean(rv$phi_ss[2])^2 + mean(rv$phi_s2s[2])^2 + mean(rv$tau[2])^2))
+
+c(rho_total_stan, rho_total_stan2)
+```
+
 
 ## Correlation with e.g. Stress Drop
 

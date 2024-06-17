@@ -2670,6 +2670,27 @@ patchwork::wrap_plots(
 <img src="pictures/sim2-corr-stan-plots-1.png" width="100%" />
 
 
+In the plot above, the posterior distribution of the total correlation coefficient is calclatedform the posterior samples of the standard deviations and correlatio coefficients, and thus also accounts for uncertainty of the standard devations.
+We can compare this with a calculation that uses a point estimate for the standard deviations.
+In this case, the uncertainty of the total correlation is slightly lower, but the difference is small and shouldn't matter in practice.
+
+
+
+``` r
+rho_total_stan2 <- (mean(rv$phi_ss[1]) * mean(rv$phi_ss[2]) * rv$rho_rec +
+                     mean(rv$phi_s2s[1]) * mean(rv$phi_s2s[2]) * rv$rho_stat +
+                     mean(rv$tau[1]) * mean(rv$tau[2]) * rv$rho_eq) /
+  (sqrt(mean(rv$phi_ss[1])^2 + mean(rv$phi_s2s[1])^2 + mean(rv$tau[1])^2) *
+     sqrt(mean(rv$phi_ss[2])^2 + mean(rv$phi_s2s[2])^2 + mean(rv$tau[2])^2))
+
+c(rho_total_stan, rho_total_stan2)
+```
+
+```
+## rvar<200,4>[2] mean ± sd:
+## [1] 0.9 ± 0.0041  0.9 ± 0.0036
+```
+
 
 ## Correlation with e.g. Stress Drop
 
@@ -2764,10 +2785,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 102.5 seconds.
+## Chain 1 finished in 89.3 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 103.4 seconds.
+## Chain 2 finished in 91.1 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2778,13 +2799,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 58.7 seconds.
+## Chain 4 finished in 86.4 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 62.3 seconds.
+## Chain 3 finished in 94.4 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 81.7 seconds.
-## Total execution time: 165.1 seconds.
+## Mean chain execution time: 90.3 seconds.
+## Total execution time: 184.2 seconds.
 ```
 
 ``` r
@@ -2792,7 +2813,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-1-80b810.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-2-80b810.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-3-80b810.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-4-80b810.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-1-80c7c2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-2-80c7c2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-3-80c7c2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-4-80c7c2.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2812,7 +2833,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-1-80b810.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-2-80b810.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-3-80b810.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-4-80b810.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-1-80c7c2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-2-80c7c2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-3-80c7c2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-4-80c7c2.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
