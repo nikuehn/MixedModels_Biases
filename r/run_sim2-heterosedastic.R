@@ -81,7 +81,7 @@ set.seed(1701)
 for(i in 1:n_sam) {
   print(paste0('i = ',i))
   eqt <- rnorm(n_eq, sd = tau_sim)
-  rect <- rnorm(n_rec, sd = phi_sim)
+  rect <- rnorm(n_rec, sd = phi_ss_sim)
   statt <- rnorm(n_stat, sd = phi_s2s_sim)
   
   data_reg$y_sim <- as.matrix(data_reg[,names_coeffs]) %*% coeffs + eqt[eq] + statt[stat] + rect

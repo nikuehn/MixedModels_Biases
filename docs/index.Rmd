@@ -1495,7 +1495,102 @@ knitr::kable(df, digits = 3, row.names = TRUE,
              caption = "Estimated correlation coefficients.")
 ```
 
+We can also estimate the correlations using a Bayesian model.
+In this case, we use a similar model as before, but pass the two target variables as data.
+The model estimates standard deviations, random effects, and correlations simultaneously.
+
+``` {r sim2-corr-stan, cache = TRUE}
+data_list <- list(
+  N = n_rec,
+  NEQ = n_eq,
+  NSTAT = n_stat,
+  Y = data_reg[,c('y_sim1','y_sim2')],
+  eq = eq,
+  stat = stat
+)
+
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_corrre_cond.stan'))
+
+fit_stan <- mod$sample(
+  data = data_list,
+  seed = 8472,
+  chains = 4,
+  iter_sampling = 200,
+  iter_warmup = 300,
+  refresh = 100,
+  max_treedepth = 10,
+  adapt_delta = 0.8,
+  parallel_chains = 2,
+  show_exceptions = FALSE
+)
+print(fit_stan$cmdstan_diagnose())
+print(fit_stan$diagnostic_summary())
+draws <- fit_stan$draws()
+rv <- as_draws_rvars(draws)
+```
+
+For a real analsswe should probably run the chains with more observations, but for a quick demonstration this is enough.
+First we look ata summary of estimated standard deviations and correlation coefficients.
+Overall, the fit is ok.
+
+``` {r sim2-corr-stan-summary}
+summarise_draws(subset(draws, variable = c('tau','phi','rho'), regex = TRUE))
+
+```
+
+Below we look at the posterior distributions of the estimated correlations.
+The vertical black line is the true value, and the solid red line is the value estimated from the randomeffects ore residuals.
+The dashed lines are the 90% confidence limits, estimated using Fisher's z-transformation [@Fisher1915].
+We also show the posterior distribution of the total correlation, which can be calculated from the samples for the individual correlations and standard deviatons (we use the `rvar` data type from the posterior package, which allos to easily perform calculations on samples from the posterior).
+
+In general, the fit and associated uncertainty looks good, for both methods.
+
+``` {r sim2-corr-stan-plots, out.width = '100%', fig.width=16}
+inverse_ztransform <- function(rho) {
+  return((exp(2 * rho) - 1) / (exp(2 * rho) + 1))
+}
+ztransform <- function(rho) {
+  0.5 * log((1+rho) / (1-rho)) 
+}
+calc_ci <- function(rho, n, level = 0.9) {
+  scale <- abs(qnorm((1 - level)/2))
+  z <- ztransform(rho)
+  se <- 1/sqrt(n - 3)
+  return(c(inverse_ztransform(z - scale * se), inverse_ztransform(z + scale * se)))
+}
+
+rho_total_stan <- (rv$phi_ss[1] * rv$phi_ss[2] * rv$rho_rec +
+                     rv$phi_s2s[1] * rv$phi_s2s[2] * rv$rho_stat +
+                     rv$tau[1] * rv$tau[2] * rv$rho_eq) /
+  (sqrt(rv$phi_ss[1]^2 + rv$phi_s2s[1]^2 + rv$tau[1]^2) * sqrt(rv$phi_ss[2]^2 + rv$phi_s2s[2]^2 + rv$tau[2]^2))
+
+patchwork::wrap_plots(
+  mcmc_dens(draws, pars = 'rho_eq') +
+    vline_at(rho_tau, linewidth = 1.5) +
+    vline_at(cor(dB1,dB2), linewidth = 1.5, color = 'red') +
+    vline_at(calc_ci(cor(dB1,dB2), n_eq), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+  mcmc_dens(draws, pars = 'rho_stat') +
+    vline_at(rho_s2s, linewidth = 1.5) +
+    vline_at(cor(dS1,dS2), linewidth = 1.5, color = 'red') +
+    vline_at(calc_ci(cor(dS1,dS2), n_stat), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+  mcmc_dens(draws, pars = 'rho_rec') +
+    vline_at(rho_ss, linewidth = 1.5) +
+    vline_at(cor(dWS1,dWS2), linewidth = 1.5, color = 'red') +
+    vline_at(calc_ci(cor(dWS1,dWS2), n_rec), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+  mcmc_dens(as_draws(rho_total_stan)) +
+    vline_at(rho_total, linewidth = 1.5) +
+    vline_at(rho_t, linewidth = 1.5, color = 'red') +
+    labs(x = 'rho_total')
+)
+```
+
+
+
 ## Correlation with e.g. Stress Drop
+
+Often, correlations between event terms (typically for PGA) and stress drops are calcualted and investigated.
+Below, we investigate such a case, by simulating event terms and stress drop from a bivariate normal distribution.
+We then fit a mixed-effects model, and estimate the correlations between the estimated event terms and stress drops.
 
 ```{r sim-corr-lmer}
 tau_sim <- 0.4

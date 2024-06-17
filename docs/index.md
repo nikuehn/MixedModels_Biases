@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "02 May, 2024, first published 14 September 2023."
+date: "17 June, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -65,7 +65,7 @@ Hence, just estimating the variance (or standard deviation) of the point estimat
 Load required libraries, and define some plot options for `ggplot2`.
 
 
-```r
+``` r
 library(ggplot2)
 library(lme4)
 library(cmdstanr)
@@ -83,7 +83,7 @@ library(latex2exp)
 ```
 
 
-```r
+``` r
 theme_set(theme_bw() + theme(
   axis.title = element_text(size = 30),
   axis.text = element_text(size = 20),
@@ -112,7 +112,7 @@ First, we read in the data and prepare a data frame for the regression.
 In total, there are 4784 records from 137 events and 923 stations.
 
 
-```r
+``` r
 data_it <- read.csv(file.path('./Git/MixedModels_Biases/','/data','italian_data_pga_id_utm_stat.csv'))
 
 # Set linear predictors
@@ -284,7 +284,7 @@ The difference is small.
 Note that for the Bayesian models (Inla and Stan), the full output is not just a point estimate of $\phi_{SS}$, $\tau$, and $\phi_{S2S}$, but the full posterior distribution.
 
 
-```r
+``` r
 df <- data.frame(inla = 1/sqrt(fit_inla$summary.hyperpar$mean),
                  lmer = c(phi_ss_lmer, tau_lmer, phi_s2s_lmer),
                  stan = colMeans(subset(as_draws_matrix(draws), variable = c('phi_ss','tau','phi_s2s'))),
@@ -309,7 +309,7 @@ We note that the interpretation of confidence intervals can be tricky [@Morey201
 The confidence and credible intervals agree quite well.
 
 
-```r
+``` r
 ci_lmer <- confint(fit_lmer, level = c(0.9))
 ```
 
@@ -317,7 +317,7 @@ ci_lmer <- confint(fit_lmer, level = c(0.9))
 ## Computing profile confidence intervals ...
 ```
 
-```r
+``` r
 df <- data.frame(inla_q05 = 1/sqrt(fit_inla$summary.hyperpar[,'0.95quant']),
                  inla_q95 = 1/sqrt(fit_inla$summary.hyperpar[,'0.05quant']),
                  lmer_c05 = ci_lmer[c(3,2,1),1],
@@ -344,7 +344,7 @@ Table: Comparison of standard deviation credible/confidence intervals.
 The coefficient estimates are also very close.
 
 
-```r
+``` r
 df <- data.frame(inla = fit_inla$summary.fixed$mean,
                  lmer = fixef(fit_lmer),
                  stan = colMeans(subset(as_draws_matrix(draws), variable = c('^c\\['), regex = TRUE)))
@@ -371,7 +371,7 @@ Table: Comparison of coefficient estimates.
 As are the confidence and credible intervals of the fixed effects.
 
 
-```r
+``` r
 df <- data.frame(inla_q05 = fit_inla$summary.fixed[,'0.05quant'],
                  inla_q95 = fit_inla$summary.fixed[,'0.95quant'],
                  lmer_c05 = ci_lmer[4:12,1],
@@ -406,7 +406,7 @@ In general, they are similar between all three fits.
 We see larger standard deviations of the event terms for the Bayesian models for large magnitudes, which is due to the fact that uncertainty due to coefficients is included, which is larger for large magnitudes.
 
 
-```r
+``` r
 p1 <- data.frame(unique(data_it[,c('EQID','mag')]),
                  lmer = sd_deltaB,
                  inla = sd_deltaB_inla,
@@ -420,7 +420,18 @@ p1 <- data.frame(unique(data_it[,c('EQID','mag')]),
   labs(x = 'number of records per event', y = TeX("$\\psi(\\widehat{\\delta B})$")) +
   guides(color = guide_legend(title=NULL), size = guide_legend(title = 'M')) +
   theme(legend.position = c(0.85,0.75))
+```
 
+```
+## Warning: A numeric `legend.position` argument in `theme()` was deprecated in ggplot2
+## 3.5.0.
+## ℹ Please use the `legend.position.inside` argument of `theme()` instead.
+## This warning is displayed once every 8 hours.
+## Call `lifecycle::last_lifecycle_warnings()` to see where this warning was
+## generated.
+```
+
+``` r
 p2 <- data.frame(unique(data_it[,c('STATID','vs30')]),
            logvs = unique(data_reg[,c('stat','logVS')])[,2],
            lmer = sd_deltaS,
@@ -440,7 +451,8 @@ patchwork::wrap_plots(p1,p2)
 ```
 
 ```
-## Warning: Removed 1 rows containing missing values (`geom_point()`).
+## Warning: Removed 1 row containing missing values or values outside the scale range
+## (`geom_point()`).
 ```
 
 <img src="pictures/example-plot-se-1.png" width="100%" />
@@ -450,7 +462,7 @@ At larger values of $\psi(\widehat{\delta WS})$, the values from `lmer` are larg
 These corelations are implicitly taken into account in the Bayesian models.
 
 
-```r
+``` r
 data.frame(inla = sd_deltaWS_inla, 
            lmer = sd_deltaWS,
            stan = sd_deltaWS_stan) %>%
@@ -470,7 +482,7 @@ We now calculate the conditional standard deviations of the random effects from 
 We compare the results against the values calculated by package `arm`, and find that the differences are negligible.
 
 
-```r
+``` r
 Z <- getME(fit_lmer, 'Z') #sparse Z design matrix
 lambda <- getME(fit_lmer, 'Lambda')
 
@@ -493,7 +505,7 @@ To illustrate this point, we simulate some data for a simple radom effects model
 We look at two cases, one wherewe have many groups, but few observations per group, and one where we have a small number of groups, but each with many observations.
 
 
-```r
+``` r
 set.seed(1701)
 sigma_gr <- 0.5 # group-level standard devation
 sigma <- 0.7 # noise standard deviation
@@ -516,7 +528,7 @@ ci1 <- confint(fit_sim, level = 0.9)
 ## Computing profile confidence intervals ...
 ```
 
-```r
+``` r
 # extract random effects and uncertainties (conditional mode and conditional standard deviation)
 # all conditional standard deviations should be the same
 tmp <- as.data.frame(ranef(fit_sim))
@@ -542,7 +554,7 @@ ci2 <- confint(fit_sim2, level = 0.9)
 ## Computing profile confidence intervals ...
 ```
 
-```r
+``` r
 tmp <- as.data.frame(ranef(fit_sim2))
 dG2 <- tmp[tmp$grpvar == 'gr','condval']
 sd_dG2 <- tmp[tmp$grpvar == 'gr','condsd']
@@ -556,7 +568,7 @@ print(VarCorr(fit_sim))
 ##  Residual             0.73133
 ```
 
-```r
+``` r
 print(VarCorr(fit_sim2))
 ```
 
@@ -572,7 +584,7 @@ This is reflected in the confidence interval, shown below, which is very wide fo
 On the other hand, the average conditional variance is small, due to the fact that we have many observations per group.
 
 
-```r
+``` r
 df = data.frame(cbind(rowDiffs(ci1), rowDiffs(ci2), 
                       c(sum(sd_dG^2)/n_gr, NA, NA),
                       c(sum(sd_dG2^2)/n_gr2, NA, NA))) %>%
@@ -602,7 +614,7 @@ The values calculated from sampling are much narrower than the ones calculated w
 In the paper we show that the values calculated with `confint` are well calibrated and provide a good assessment of uncertainty.
 
 
-```r
+``` r
 n_rep <- 10000
 sample_sd <- rep(NA, n_rep)
 sample_sd2 <- rep(NA, n_rep)
@@ -636,7 +648,7 @@ We also show the 90% confidence interval from `confint` in red.
 These intervals are much wider than the sampled values.
 
 
-```r
+``` r
 p1 <- data.frame(sd = sample_sd) %>%
   ggplot() +
   geom_density(aes(x=sd), linewidth = lw) +
@@ -667,7 +679,7 @@ We illustrate the underestimation of standard deviations on the WUS data from th
 In total, there are 12482 records from 274 events and 1519 stations.
 
 
-```r
+``` r
 data_reg <- read.csv(file.path('./Git/MixedModels_Biases/','/data','data_cb.csv'))
 print(dim(data_reg))
 ```
@@ -676,7 +688,7 @@ print(dim(data_reg))
 ## [1] 12482    11
 ```
 
-```r
+``` r
 print(head(data_reg))
 ```
 
@@ -690,7 +702,7 @@ print(head(data_reg))
 ## 6         1   25    162 6.19 527.92  15.96  15.96  3    6  6.190   527.92
 ```
 
-```r
+``` r
 p1 <- ggplot(data_reg) +
   geom_point(aes(x = Rrup, y = M)) +
   scale_x_log10(breaks = breaks, minor_breaks = minor_breaks)
@@ -706,7 +718,7 @@ patchwork::wrap_plots(p1, p2)
 <img src="pictures/read-data-cb-1.png" width="100%" />
 
 
-```r
+``` r
 n_rec <- nrow(data_reg)
 n_eq <- max(data_reg$eq)
 n_stat <- max(data_reg$stat)
@@ -731,7 +743,7 @@ We do not simulate any fixed effects structure, in this example we focus on bias
 
 First, we fix the standard deviations:
 
-```r
+``` r
 tau_sim <- 0.4
 phi_s2s_sim <- 0.43
 phi_ss_sim <- 0.5
@@ -739,7 +751,7 @@ phi_ss_sim <- 0.5
 
 Next, we randomly sample event terms, site terms, and withn-event/within-site residuals, and combine them into total residuals (our target variable for this example).
 
-```r
+``` r
 set.seed(5618)
 # randomly sample residals, event and site terms
 dWS_sim <- rnorm(n_rec, sd = phi_ss_sim)
@@ -757,7 +769,7 @@ As we have seen for the Italian data, we get very similar results using `lmer` a
 Frequentist methods are still overwhelmingly used in GMM development, so it makes sense to focus on them here.
 
 
-```r
+``` r
 fit_sim <- lmer(y_sim ~ (1 | eq) + (1 | stat), data_reg, REML = FALSE)
 summary(fit_sim)
 ```
@@ -793,7 +805,7 @@ Below, we extract the conditional modes and standard deviations of the random ef
 We also calculate the within-event/within-site residuals, and approximate their standard deviation.
 
 
-```r
+``` r
 tmp <- as.data.frame(ranef(fit_sim))
 dS_lmer <- tmp[tmp$grpvar == 'stat','condval']
 dB_lmer <- tmp[tmp$grpvar == 'eq','condval']
@@ -817,7 +829,7 @@ Then, we calculate the standard deviations according to Equation (4) in the pape
 We also show the standard deviations calculated based on the conditional modes of the random effects/residuals, as well as calculated using a sample from the conditional distribution.
 
 
-```r
+``` r
 # compare estiamtes of standard deviations
 df <- data.frame(phi_s2s = c(phi_s2s_sim,
                        sd(dS_sim),
@@ -907,7 +919,7 @@ Based on point estimates, one would conclude that site terms and within-event/wi
 In this context, be aware of hypothesis tests [@Wasserstein2019],[@Amrhein2019].
 
 
-```r
+``` r
 # calculate p-value of Breusch-Pagan test, testing for dependence on magnitude
 df <- data.frame(
   dS = c(lmtest::bptest(dS ~ M, data = data.frame(M = magstat, dS = dS_lmer))$p.value,
@@ -946,7 +958,7 @@ While one always needs to be careful with different numbers of events/records/st
 The standard deviations that include uncertainty of the random effects/residuals show a pattern that is closr to constant.
 
 
-```r
+``` r
 # mamgnitude break points for bins
 magbins <- c(3,4,5,6,7,8)
 
@@ -1044,7 +1056,7 @@ For this simulation, we also generate median predictions from fixed effects, in 
 
 First, we declare the values of the standard deviations for the simulations.
 
-```r
+``` r
 # fix standard deviations and magnitude break points
 phi_s2s_sim <- 0.43
 tau_sim_val <- c(0.4,0.25)
@@ -1071,7 +1083,7 @@ Now, we declare the coefficients, which are taken from the ITA18 model of @Lanza
 We also compute the linear predictors for the model.
 
 
-```r
+``` r
 coeffs <- c(3.421046409, 0.193954090, -0.021982777, 0.287149291, -1.405635476, -0.002911264, -0.394575970)
 names_coeffs <- c("intercept", "M1", "M2", "MlogR", "logR", "R", "logVS")
 
@@ -1090,7 +1102,7 @@ data_reg$logVS <- log10(data_reg$VS_gmean/800)*(data_reg$VS_gmean<=1500)+log10(1
 Now, we randomly sample event terms, site terms, and residuals, and combine with median predictions.
 
 
-```r
+``` r
 set.seed(1701)
 dB_sim <- rnorm(n_eq, sd = tau_sim)
 dWS_sim <- rnorm(n_rec, sd = phi_ss_sim)
@@ -1103,7 +1115,7 @@ Firs, we perform a linear mixed effects regression (which assumes homoscedastic 
 In general, the coefficients are estimated well, but the standard deviations are off.
 
 
-```r
+``` r
 # linear mixed effects regression
 fit_sim <- lmer(y_sim ~ M1 + M2 + MlogR + logR + R + logVS + (1 | eq) + (1 | stat), data_reg)
 summary(fit_sim)
@@ -1148,7 +1160,7 @@ summary(fit_sim)
 ## logVS  0.303  0.029  0.029 -0.011 -0.021 -0.035
 ```
 
-```r
+``` r
 # extract conditional modes and standard deviations of residuals/random effects
 tmp <- as.data.frame(ranef(fit_sim))
 dS_lmer <- tmp[tmp$grpvar == 'stat','condval']
@@ -1168,7 +1180,7 @@ In the Stan model, we can mdel the standard deviations to be magnitude dependent
 Below, we compile the Stan model, and print out its code.
 
 
-```r
+``` r
 mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_tauM_phiM.stan'))
 mod
 ```
@@ -1612,7 +1624,7 @@ The standard deviations are well estimated (very similar to the values based on 
 Below, we plot the posterior distribution of $\tau_1$ and $\tau_2$, together with the true value (black) and the value estimated from point estimates of the event terms in the respective magnitude bins (red), with (solid) and without (dashed) uncertainty.
 
 
-```r
+``` r
 tmp <- mageq <= mb_tau[1]
 tmp <- sqrt((sum(dB_lmer[tmp]^2) + sum(sd_dB_lmer[tmp]^2)) / sum(tmp))
 
@@ -1657,7 +1669,7 @@ Below, we show posterior distributions of $\phi_{SS,1}$ and $\phi_{SS,2}$, simil
 In this case, we see strong biases for the estimates from `lmer`.
 
 
-```r
+``` r
 tmp <- data_reg$M <= mb_phi[1]
 tmp <- sqrt((sum(dWS_lmer[tmp]^2) + sum(sd_dWS_lmer[tmp]^2)) / sum(tmp))
 
@@ -1699,7 +1711,7 @@ patchwork::wrap_plots(p1,p2)
 And finally, the posterior distribution of $\phi_{S2S}$.
 
 
-```r
+``` r
 data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_s2s', regex = FALSE),
                  full = subset(as_draws_matrix(draws_full), variable = 'phi_s2s', regex = FALSE)) |>
   set_names(c('dR','full')) |>
@@ -1723,7 +1735,7 @@ Estimating the values from binned random effects/residuals can work but leads to
 Our focus is on estimating the magnitude-dependent standard deviations, but as a check we also plot the posterior distrbutions of the coefficients for the full stan model, together with the true values (black) and `lmer` estimates (red).
 
 
-```r
+``` r
 df <- data.frame(Parameter = c('c[1]','c[2]','c[3]','c[4]','c[5]','c[6]','c[7]'),
            true = coeffs, lmer = fixef(fit_sim))
 
@@ -1967,7 +1979,7 @@ Ths s due to the fact that there are not many events in total (and not many at l
 For $\phi_{SS}$, on the other hand, the two estimated functions agree quite well.
 
 
-```r
+``` r
 # function to calculate lnear predictos for magnitude scaling with break points
 func_sd_mag <- function(mag, mb) {
   m1 <- 1 * (mag < mb[2]) - (mag - mb[1]) / (mb[2] - mb[1]) * (mag > mb[1] & mag < mb[2])
@@ -2057,7 +2069,7 @@ Here, we use standard deviations in $log_{10}$-units, which is what was used in 
 We generate some data, and fit a full model (including $V_{S30}$-scaling).
 
 
-```r
+``` r
 tau_sim <- 0.17
 phi_s2s_sim <- 0.23
 phi_sim <- 0.2
@@ -2117,7 +2129,7 @@ We also fit linear mixed effects model on the total residuals.
 
 
 
-```r
+``` r
 fit_sim2 <- lmer(y_sim ~ M1 + M2 + MlogR + logR + R + (1|eq) +(1|stat), data_reg)
 
 deltaS_lmer2 <- ranef(fit_sim2)$stat$`(Intercept)`
@@ -2165,7 +2177,7 @@ Below we look at the estimated standard deviations.
 The full fit and fit from total residuals estimate $\phi_{S2S}$ well, while the values estimated using linear regression are biased low (using well recorded stations reduces the bias).
 
 
-```r
+``` r
 df <- data.frame(model = c('true', 'sample','full', 'dS','dS(N>=10)','dR'),
   phi_s2s = c(phi_s2s_sim, sd(dS_sim),as.data.frame(VarCorr(fit_sim))$sdcor[1],
   sigma(fit_sim2a), sigma(fit_sim3a), as.data.frame(VarCorr(fit_sim4))$sdcor[1]))
@@ -2252,7 +2264,7 @@ Below we plot the desities of the estimated coefficients for the repeated simula
 Overall, on average we can recover the coefficients using both methods reasonably well, but the two-step procedure leads to somewhat wider ranges of the estimated coefficients.
 
 
-```r
+``` r
 df1 <- data.frame(mat_fix) %>% set_names(names_coeffs)
 df1$model <- '1-step'
 
@@ -2282,7 +2294,7 @@ We now look how often the true coefficient lies inside the 90% confidence interv
 For the one-step regression, the estimates are well calibrated (true coefficient values are inside the 90% confidence interval roughly 90% of the time), while they are not for the two-step procedure.
 
 
-```r
+``` r
 data.frame(rbind(colSums(mat_ci)/n_sam,
                  colSums(mat_ci2)/n_sam),
            row.names = c('one-step','two-step')) %>%
@@ -2303,7 +2315,7 @@ Table: Fraction how many times the estimated coefficient is inside the 90% confi
 Below, we plot the densities of the estimated standard deviations, with similar results and conclusions as for the coefficients.
 
 
-```r
+``` r
 names_sds <- c('phi_s2s','tau','phi_ss')
 df1 <- data.frame(mat_sd) %>% set_names(names_sds)
 df1$model <- '1-step'
@@ -2331,7 +2343,7 @@ rbind(df1 %>% pivot_longer(!model),
 For the confidence intervals of the standard deviations, again the two-step procedure s not well calibrated.
 
 
-```r
+``` r
 data.frame(rbind(colSums(mat_ci_sd)/n_sam,
                  colSums(mat_ci_sd2)/n_sam),
            row.names = c('one-step','two-step')) %>%
@@ -2374,7 +2386,7 @@ We calculate the total correlation usng the best estimate (REML), the sample sta
 
 
 
-```r
+``` r
 tau_sim1 <- 0.4
 phi_s2s_sim1 <- 0.43
 phi_ss_sim1 <- 0.5
@@ -2458,10 +2470,215 @@ Table: Estimated correlation coefficients.
 |cov/sd(point estimate) | 0.863| 0.952| 0.898| 0.904|
 |cov()/hat()            | 0.518| 0.853| 0.815| 0.907|
 
+We can also estimate the correlations using a Bayesian model.
+In this case, we use a similar model as before, but pass the two target variables as data.
+The model estimates standard deviations, random effects, and correlations simultaneously.
+
+
+``` r
+data_list <- list(
+  N = n_rec,
+  NEQ = n_eq,
+  NSTAT = n_stat,
+  Y = data_reg[,c('y_sim1','y_sim2')],
+  eq = eq,
+  stat = stat
+)
+
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_corrre_cond.stan'))
+
+fit_stan <- mod$sample(
+  data = data_list,
+  seed = 8472,
+  chains = 4,
+  iter_sampling = 200,
+  iter_warmup = 300,
+  refresh = 100,
+  max_treedepth = 10,
+  adapt_delta = 0.8,
+  parallel_chains = 2,
+  show_exceptions = FALSE
+)
+```
+
+```
+## Running MCMC with 4 chains, at most 2 in parallel...
+## 
+## Chain 1 Iteration:   1 / 500 [  0%]  (Warmup) 
+## Chain 2 Iteration:   1 / 500 [  0%]  (Warmup) 
+## Chain 1 Iteration: 100 / 500 [ 20%]  (Warmup) 
+## Chain 2 Iteration: 100 / 500 [ 20%]  (Warmup) 
+## Chain 1 Iteration: 200 / 500 [ 40%]  (Warmup) 
+## Chain 2 Iteration: 200 / 500 [ 40%]  (Warmup) 
+## Chain 1 Iteration: 300 / 500 [ 60%]  (Warmup) 
+## Chain 1 Iteration: 301 / 500 [ 60%]  (Sampling) 
+## Chain 2 Iteration: 300 / 500 [ 60%]  (Warmup) 
+## Chain 2 Iteration: 301 / 500 [ 60%]  (Sampling) 
+## Chain 1 Iteration: 400 / 500 [ 80%]  (Sampling) 
+## Chain 2 Iteration: 400 / 500 [ 80%]  (Sampling) 
+## Chain 1 Iteration: 500 / 500 [100%]  (Sampling) 
+## Chain 1 finished in 588.0 seconds.
+## Chain 3 Iteration:   1 / 500 [  0%]  (Warmup) 
+## Chain 2 Iteration: 500 / 500 [100%]  (Sampling) 
+## Chain 2 finished in 616.6 seconds.
+## Chain 4 Iteration:   1 / 500 [  0%]  (Warmup) 
+## Chain 3 Iteration: 100 / 500 [ 20%]  (Warmup) 
+## Chain 4 Iteration: 100 / 500 [ 20%]  (Warmup) 
+## Chain 3 Iteration: 200 / 500 [ 40%]  (Warmup) 
+## Chain 4 Iteration: 200 / 500 [ 40%]  (Warmup) 
+## Chain 3 Iteration: 300 / 500 [ 60%]  (Warmup) 
+## Chain 3 Iteration: 301 / 500 [ 60%]  (Sampling) 
+## Chain 4 Iteration: 300 / 500 [ 60%]  (Warmup) 
+## Chain 4 Iteration: 301 / 500 [ 60%]  (Sampling) 
+## Chain 3 Iteration: 400 / 500 [ 80%]  (Sampling) 
+## Chain 4 Iteration: 400 / 500 [ 80%]  (Sampling) 
+## Chain 3 Iteration: 500 / 500 [100%]  (Sampling) 
+## Chain 3 finished in 694.7 seconds.
+## Chain 4 Iteration: 500 / 500 [100%]  (Sampling) 
+## Chain 4 finished in 680.1 seconds.
+## 
+## All 4 chains finished successfully.
+## Mean chain execution time: 644.8 seconds.
+## Total execution time: 1297.3 seconds.
+```
+
+``` r
+print(fit_stan$cmdstan_diagnose())
+```
+
+```
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-1-115853.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-2-115853.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-3-115853.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-4-115853.csv
+## 
+## Checking sampler transitions treedepth.
+## Treedepth satisfactory for all transitions.
+## 
+## Checking sampler transitions for divergences.
+## No divergent transitions found.
+## 
+## Checking E-BFMI - sampler transitions HMC potential energy.
+## E-BFMI satisfactory.
+## 
+## Effective sample size satisfactory.
+## 
+## Split R-hat values satisfactory all parameters.
+## 
+## Processing complete, no problems detected.
+## $status
+## [1] 0
+## 
+## $stdout
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-1-115853.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-2-115853.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-3-115853.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-4-115853.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## 
+## $stderr
+## [1] ""
+## 
+## $timeout
+## [1] FALSE
+```
+
+``` r
+print(fit_stan$diagnostic_summary())
+```
+
+```
+## $num_divergent
+## [1] 0 0 0 0
+## 
+## $num_max_treedepth
+## [1] 0 0 0 0
+## 
+## $ebfmi
+## [1] 0.7973268 0.8146631 1.0102995 1.0385106
+```
+
+``` r
+draws <- fit_stan$draws()
+rv <- as_draws_rvars(draws)
+```
+
+For a real analsswe should probably run the chains with more observations, but for a quick demonstration this is enough.
+First we look ata summary of estimated standard deviations and correlation coefficients.
+Overall, the fit is ok.
+
+
+``` r
+summarise_draws(subset(draws, variable = c('tau','phi','rho'), regex = TRUE))
+```
+
+```
+## # A tibble: 9 × 10
+##   variable    mean median      sd     mad    q5   q95  rhat ess_bulk ess_tail
+##   <chr>      <dbl>  <dbl>   <dbl>   <dbl> <dbl> <dbl> <dbl>    <dbl>    <dbl>
+## 1 tau[1]     0.415  0.414 0.0198  0.0202  0.383 0.448 1.00      781.     682.
+## 2 tau[2]     0.472  0.472 0.0227  0.0232  0.437 0.509 1.01      765.     683.
+## 3 phi_ss[1]  0.500  0.500 0.00340 0.00347 0.495 0.506 1.00     1055.     699.
+## 4 phi_ss[2]  0.551  0.551 0.00376 0.00380 0.545 0.557 1.00     1160.     666.
+## 5 phi_s2s[1] 0.417  0.417 0.0110  0.0109  0.399 0.435 1.01      414.     629.
+## 6 phi_s2s[2] 0.397  0.397 0.0114  0.0113  0.377 0.416 1.02      324.     452.
+## 7 rho_rec    0.900  0.900 0.00189 0.00192 0.897 0.903 0.999    1477.     638.
+## 8 rho_eq     0.955  0.956 0.00611 0.00615 0.945 0.965 1.01      908.     726.
+## 9 rho_stat   0.846  0.846 0.0120  0.0121  0.826 0.865 1.01      455.     531.
+```
+
+Below we look at the posterior distributions of the estimated correlations.
+The vertical black line is the true value, and the solid red line is the value estimated from the randomeffects ore residuals.
+The dashed lines are the 90% confidence limits, estimated using Fisher's z-transformation [@Fisher1915].
+We also show the posterior distribution of the total correlation, which can be calculated from the samples for the individual correlations and standard deviatons (we use the `rvar` data type from the posterior package, which allos to easily perform calculations on samples from the posterior).
+
+In general, the fit and associated uncertainty looks good, for both methods.
+
+
+``` r
+inverse_ztransform <- function(rho) {
+  return((exp(2 * rho) - 1) / (exp(2 * rho) + 1))
+}
+ztransform <- function(rho) {
+  0.5 * log((1+rho) / (1-rho)) 
+}
+calc_ci <- function(rho, n, level = 0.9) {
+  scale <- abs(qnorm((1 - level)/2))
+  z <- ztransform(rho)
+  se <- 1/sqrt(n - 3)
+  return(c(inverse_ztransform(z - scale * se), inverse_ztransform(z + scale * se)))
+}
+
+rho_total_stan <- (rv$phi_ss[1] * rv$phi_ss[2] * rv$rho_rec +
+                     rv$phi_s2s[1] * rv$phi_s2s[2] * rv$rho_stat +
+                     rv$tau[1] * rv$tau[2] * rv$rho_eq) /
+  (sqrt(rv$phi_ss[1]^2 + rv$phi_s2s[1]^2 + rv$tau[1]^2) * sqrt(rv$phi_ss[2]^2 + rv$phi_s2s[2]^2 + rv$tau[2]^2))
+
+patchwork::wrap_plots(
+  mcmc_dens(draws, pars = 'rho_eq') +
+    vline_at(rho_tau, linewidth = 1.5) +
+    vline_at(cor(dB1,dB2), linewidth = 1.5, color = 'red') +
+    vline_at(calc_ci(cor(dB1,dB2), n_eq), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+  mcmc_dens(draws, pars = 'rho_stat') +
+    vline_at(rho_s2s, linewidth = 1.5) +
+    vline_at(cor(dS1,dS2), linewidth = 1.5, color = 'red') +
+    vline_at(calc_ci(cor(dS1,dS2), n_stat), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+  mcmc_dens(draws, pars = 'rho_rec') +
+    vline_at(rho_ss, linewidth = 1.5) +
+    vline_at(cor(dWS1,dWS2), linewidth = 1.5, color = 'red') +
+    vline_at(calc_ci(cor(dWS1,dWS2), n_rec), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+  mcmc_dens(as_draws(rho_total_stan)) +
+    vline_at(rho_total, linewidth = 1.5) +
+    vline_at(rho_t, linewidth = 1.5, color = 'red') +
+    labs(x = 'rho_total')
+)
+```
+
+<img src="pictures/sim2-corr-stan-plots-1.png" width="100%" />
+
+
+
 ## Correlation with e.g. Stress Drop
 
+Often, correlations between event terms (typically for PGA) and stress drops are calcualted and investigated.
+Below, we investigate such a case, by simulating event terms and stress drop from a bivariate normal distribution.
+We then fit a mixed-effects model, and estimate the correlations between the estimated event terms and stress drops.
 
-```r
+
+``` r
 tau_sim <- 0.4
 phi_s2s_sim <- 0.43
 phi_ss_sim <- 0.5
@@ -2505,7 +2722,7 @@ $$
 $$
 
 
-```r
+``` r
 mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_wvar_corr.stan'))
 
 data_list_cor <- list(
@@ -2547,10 +2764,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 87.0 seconds.
+## Chain 1 finished in 102.5 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 88.6 seconds.
+## Chain 2 finished in 103.4 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2561,21 +2778,21 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 79.3 seconds.
+## Chain 4 finished in 58.7 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 84.0 seconds.
+## Chain 3 finished in 62.3 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 84.8 seconds.
-## Total execution time: 171.7 seconds.
+## Mean chain execution time: 81.7 seconds.
+## Total execution time: 165.1 seconds.
 ```
 
-```r
+``` r
 print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-1-80b333.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-2-80b333.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-3-80b333.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-4-80b333.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-1-80b810.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-2-80b810.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-3-80b810.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-4-80b810.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2595,7 +2812,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-1-80b333.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-2-80b333.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-3-80b333.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgKBHue/gmm_partition_wvar_corr-202405021031-4-80b333.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-1-80b810.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-2-80b810.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-3-80b810.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpHnBzCh/gmm_partition_wvar_corr-202406171308-4-80b810.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -2604,7 +2821,7 @@ print(fit$cmdstan_diagnose())
 ## [1] FALSE
 ```
 
-```r
+``` r
 print(fit$diagnostic_summary())
 ```
 
@@ -2619,7 +2836,7 @@ print(fit$diagnostic_summary())
 ## [1] 0.8160571 0.8943540 0.7220071 0.8905378
 ```
 
-```r
+``` r
 draws_corr <- fit$draws()
 
 
@@ -2643,7 +2860,7 @@ Below, we show the posterior distribution of the correlation coefficient $\rho$,
 The black dashed line is the mean of he posterior distribution of `rho`.
 
 
-```r
+``` r
 mcmc_hist(draws_corr, pars = 'rho') +
   vline_at(rho, linewidth = 1.5) +
   vline_at(colMeans(subset(as_draws_matrix(draws_corr), variable = 'rho', regex = FALSE)),
@@ -2667,7 +2884,7 @@ This data was used in @Kuehn2022b for nonergodic model comparison, which made it
 First, we read and prepare the data.
 
 
-```r
+``` r
 data_it <- read.csv(file.path('./Git/MixedModels_Biases/','/data','italian_data_pga_id_utm_stat.csv'))
 
 # Set linear predictors
@@ -2719,7 +2936,7 @@ names_coeffs <- c("intercept", "M1", "M2", "MlogR", "logR", "R", "Fss", "Frv", "
 
 
 
-```r
+``` r
 p1 <- ggplot(data_it) +
   geom_point(aes(x = JB_complete, y = mag)) +
   scale_x_log10(breaks = breaks, minor_breaks = minor_breaks)
@@ -2729,7 +2946,8 @@ patchwork::wrap_plots(p1, p2)
 ```
 
 ```
-## Warning: Transformation introduced infinite values in continuous x-axis
+## Warning in scale_x_log10(breaks = breaks, minor_breaks = minor_breaks): log-10
+## transformation introduced infinite values.
 ```
 
 ```
@@ -2741,7 +2959,7 @@ We simulate data for some spatial models on the Italian data, and we use INLA (<
 Below, we set the penalized complexity prior [@Simpson2017] for the standard deviations, used throughout.
 
 
-```r
+``` r
 prior_prec_tau <- list(prec = list(prior = 'pc.prec', param = c(0.3, 0.01)))
 prior_prec_phiS2S    <- list(prec = list(prior = 'pc.prec', param = c(0.3, 0.01))) 
 prior_prec_phiSS    <- list(prec = list(prior = 'pc.prec', param = c(0.3, 0.01)))
@@ -2757,7 +2975,7 @@ We use the Mat\'ern covariance function for the spatial correlation of the site 
 In general, we follow @Krainski2019 when seting up the spatial models.
 
 
-```r
+``` r
 cMatern <- function(h, nu, kappa) {
   ifelse(h > 0, besselK(h * kappa, nu) * (h * kappa)^nu / 
            (gamma(nu) * 2^(nu - 1)), 1)
@@ -2775,7 +2993,7 @@ rmvnorm0 <- function(n, cov, R = NULL) {
 Next we define the coefficients, spatial range, and standard deviations for the simulation.
 
 
-```r
+``` r
 # unique station coordinates
 co_stat_utm <- unique(data_it[,c("STATID", "X_stat","Y_stat")])[,c(2,3)]
 
@@ -2797,7 +3015,7 @@ cov <- phi_s2s_c^2 * cMatern(as.matrix(dist(co_stat_utm)), nu, kappa) + diag(10^
 To use R-INLA with the ``stochastic partial differential equation'' (SPDE) approach, we need to define a mesh.
 
 
-```r
+``` r
 max.edge2    <- 5 
 bound.outer2 <- 40 
 mesh = inla.mesh.2d(loc=co_stat_utm,
@@ -2814,7 +3032,7 @@ print(mesh$n) # print number of mesh nodes
 Now we define priors for the standard deviations (based on @Simpson2017), the SPDE prior, the projecion matrix `A`, and the formula.
 
 
-```r
+``` r
 spde_stat <- inla.spde2.pcmatern(
   # Mesh and smoothness parameter
   mesh = mesh, alpha = 2,
@@ -2849,7 +3067,7 @@ Now, we sample the event terms, site terms, spatially correlated site terms, and
 We then fit a `lmer` model to the data.
 
 
-```r
+``` r
 set.seed(8472)
 dB_sim <- rnorm(n_eq, mean =0, sd = tau_sim)
 dS_sim <- rnorm(n_stat, mean =0, sd = phi_s2s_0)
@@ -2932,7 +3150,7 @@ fit_inla_spatial_total <- inla(form_spatial_total,
 Below, we plot the posterior distributions of the spatial range as well as the associated standard deviation.
 
 
-```r
+``` r
 p1 <- rbind(
   data.frame(inla.tmarginal(function(x) exp(x), 
                                 fit_inla_spatial_stat$internal.marginals.hyperpar$`log(Range) for idx_stat`),
@@ -2994,7 +3212,7 @@ We show differences with respect to the full model.
 As we can see, there are strong differences in the predicted means of the spatially correlated site terms of the full model and the model estmated from site terms.
 
 
-```r
+``` r
 diff <- fit_inla_spatial_stat_u$summary.random$idx_stat$mean - fit_inla_spatial_stat$summary.random$idx_stat$mean
 diff2 <- fit_inla_spatial_total$summary.random$idx_stat$mean - fit_inla_spatial_stat$summary.random$idx_stat$mean
 
@@ -3019,7 +3237,7 @@ In this section, we simulate data based on the cell-specific attenuation model [
 First, we read in the cell-specific distances, and some definitions.
 
 
-```r
+``` r
 # read in cell-specific attenuation
 data_dm <- rstan::read_rdump(file.path('./Git/MixedModels_Biases/','/data','dm_25x25.Rdata'))
 dm_sparse <- as(data_dm$RC,"dgCMatrix") / 100 # divide by 100 to avoid small values
@@ -3032,7 +3250,7 @@ data_reg$idx_cell <- 1:n_rec
 Now we define the parameters for the simulation, and sample.
 
 
-```r
+``` r
 tau_sim <- 0.17
 phi_s2s_sim <- 0.2
 phi_ss_sim <- 0.18
@@ -3051,7 +3269,7 @@ data_reg$y_sim <- as.numeric(as.matrix(data_reg[,names_coeffs]) %*% coeffs + dm_
 Now we fit the different models using Inla.
 
 
-```r
+``` r
 # full fit
 fit_sim_cell <- inla(y_sim ~ 0 + intercept + M1 + M2 + logR + MlogR + R + Fss + Frv + logVS +
                        f(eq, model = "iid", hyper = prior_prec_tau) + 
@@ -3069,7 +3287,7 @@ fit_sim_cell <- inla(y_sim ~ 0 + intercept + M1 + M2 + logR + MlogR + R + Fss + 
 ##   Use this model with extra care!!! Further warnings are disabled.
 ```
 
-```r
+``` r
 fit_sim <- lmer(y_sim ~ M1 + M2 + logR + MlogR + R + Fss + Frv + logVS + (1|eq) + (1|stat), data_reg)
 data_reg$dWS_lmer <- data_reg$y_sim - predict(fit_sim)
 fit_sim_cell_dws <- inla(dWS_lmer ~ 0 + intercept +
@@ -3098,7 +3316,7 @@ fit_sim_cell_dR <- inla(dR_lmer ~ 0 + intercept + R +
 Ths shows the posterior distribution of the standard deviation of the cell-specific attenuation coefficients, which is understimated from $\delta WS$.
 
 
-```r
+``` r
 rbind(data.frame(inla.tmarginal(function(x) sqrt(exp(-x)), 
                                 fit_sim_cell$internal.marginals.hyperpar$`Log precision for idx_cell`),
                  mod = "full"),
@@ -3130,7 +3348,7 @@ Code to run the simulations can be found at <https://github.com/nikuehn/MixedMod
 ## Simulations with Homoscedastic Standard Deviations
 
 
-```r
+``` r
 # Results for simulations based on CB14 data
 load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim1_CB.Rdata'))
 
@@ -3163,7 +3381,7 @@ Table: Comparison of standard deviation estimates.
 
 
 
-```r
+``` r
 p1 <- data.frame(res_val[,c(1,4,7)], res_sd[,c(1,4)]) %>%
   set_names(c('lmer_max', 'stan_mean','stan_median','lmer_sd(dS)','stan_sd(dS)')) %>%
   pivot_longer(everything(), names_sep = '_', names_to = c('model','type')) %>%
@@ -3216,7 +3434,7 @@ patchwork::wrap_plots(p1,p2 + theme(legend.position = 'none'),p3,ggpubr::as_ggpl
 ## Heteroscedastic Standard Deviations
 
 
-```r
+``` r
 # Results for simulations based on CB14 data
 load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim2_heteroscedastic_coeff_CB.Rdata'))
 load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim2_heteroscedastic_coeff_stan2_CB.Rdata'))
@@ -3232,7 +3450,7 @@ mb_phi <- c(4.5,5.5)
 ```
 
 
-```r
+``` r
 p1 <- data.frame(res_phi, res_phi_stan[,c(1,2)], res_phi_stan2[,c(1,2)]) %>%
   set_names(c('sd(dWS)_lowm','sd(dWS)+unc_lowm','sd(dWS)_largem','sd(dWS)+unc_largem',
               'stan_lowm','stan_largem','stanf_lowm','stanf_largem')) %>%
@@ -3292,7 +3510,7 @@ patchwork::wrap_plots(p1 + theme(legend.position = 'none'),p2,p3,ggpubr::as_ggpl
 <img src="pictures/res-sim2-hs-all-plots-1.png" width="100%" />
 
 
-```r
+``` r
 df1 <- data.frame(res_coeffs) %>% set_names(names_coeffs)
 df1$model <- 'lmer'
 
@@ -3325,7 +3543,7 @@ There are less such stations in the Italian data set, which results in this larg
 This is a reminder that the size of the biases that can occur depends on the data set.
 
 
-```r
+``` r
 set1 <- RColorBrewer::brewer.pal(7, "Set1")
 coeff_vs <- -0.394575970
 
@@ -3375,7 +3593,7 @@ patchwork::wrap_plots(p1, p2)
 
 ## Correlations of Random Effects
 
-```r
+``` r
 tau_sim1 <- 0.4
 phi_s2s_sim1 <- 0.43
 phi_ss_sim1 <- 0.5
@@ -3389,7 +3607,7 @@ sigma_tot2 <- sqrt(tau_sim2^2 + phi_s2s_sim2^2 + phi_ss_sim2^2)
 ```
 
 
-```r
+``` r
 load(file.path('./Git/MixedModels_Biases/', 'results',
                                         'res_corrre_CB14_high.Rdata'))
 
@@ -3477,7 +3695,7 @@ patchwork::wrap_plots(
 <img src="pictures/res-sim6-corrre-high-1.png" width="100%" />
 
 
-```r
+``` r
 func_ci <- function(cor, n, rho) {
   r_fisher <- log((1+cor) / (1-cor)) / 2
   r_lb <- r_fisher - (1.64 /sqrt(n - 3))
@@ -3512,7 +3730,7 @@ Table: Fraction of correlation coefficiets inside 90% confidence interval.
 |estimated | 0.360| 0.860| 0.785|
 
 
-```r
+``` r
 load(file.path('./Git/MixedModels_Biases/', 'results',
                                         'res_corrre_CB14_low.Rdata'))
 
@@ -3592,17 +3810,19 @@ patchwork::wrap_plots(
 ```
 
 ```
-## Warning: Removed 2 rows containing non-finite values (`stat_density()`).
+## Warning: Removed 2 rows containing non-finite outside the scale range
+## (`stat_density()`).
 ```
 
 ```
-## Warning: Removed 3 rows containing non-finite values (`stat_density()`).
+## Warning: Removed 3 rows containing non-finite outside the scale range
+## (`stat_density()`).
 ```
 
 <img src="pictures/res-sim6-corrre-low-1.png" width="100%" />
 
 
-```r
+``` r
 knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), func_ci(mat_cor[,1], n_stat, rho_s2s)),
                         dB = c(func_ci(mat_cor_sample[,2], n_eq, rho_tau), func_ci(mat_cor[,2], n_eq, rho_tau)),
                         dWS = c(func_ci(mat_cor_sample[,3], n_rec, rho_ss), func_ci(mat_cor[,3], n_rec, rho_ss)),
@@ -3624,7 +3844,7 @@ Table: Fraction of correlation coefficiets inside 90% confidence interval.
 ## Correlations with Stress Drop
 
 
-```r
+``` r
 # Results for simulations based on CB14 data
 df_res_cor <- read.csv(file.path('./Git/MixedModels_Biases/', 'results',
                                         'res_sim_cor_CB_N50.csv'))
@@ -3651,7 +3871,7 @@ df_res_cor %>% pivot_longer(c(cor_sim, cor_lme, cor_mean)) %>%
 <img src="pictures/res-sim4-corr-all-1.png" width="50%" />
 
 
-```r
+``` r
 knitr::kable(data.frame(simulated = func_ci(df_res_cor$cor_sim, n_eq, rho),
                         Stan = (sum(df_res_cor$cor_q05 <= rho & df_res_cor$cor_q95 >= rho)) / nrow(df_res_cor),
                         lmer = func_ci(df_res_cor$cor_lme, n_eq, rho)),
@@ -3672,7 +3892,7 @@ Table: Fraction of correlation coefficiets inside 90% confidence interval.
 ## Spatial Correlations of Site Terms
 
 
-```r
+``` r
 seed <- 1701
 load(file = file.path('./Git/MixedModels_Biases/', 'results', sprintf('res_spatial_ita18_italy_seed%d.Rdata', seed)))
 load(file = file.path('./Git/MixedModels_Biases/', 'results', sprintf('res_spatial_ita18b_italy_seed%d.Rdata', seed)))
@@ -3748,7 +3968,7 @@ patchwork::wrap_plots(p1,p2,p3,p4, ncol = 2)
 ## Cell-Specific Attenuation
 
 
-```r
+``` r
 tau <- 0.17
 phi_s2s <- 0.2
 phi_0 <- 0.18
