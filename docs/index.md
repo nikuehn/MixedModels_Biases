@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "17 June, 2024, first published 14 September 2023."
+date: "30 August, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -2384,6 +2384,11 @@ where $IM1$ and $IM2$ are different ground-motion intensity measures.
 There are again different possible choices for the use of the standard deviations.
 We calculate the total correlation usng the best estimate (REML), the sample standard deviation, and also as the correlation of total residuals.
 
+### Simulation 1
+
+First, we simulate data with relatively high correlations.
+The three correlations (corelaton of event terms, correlation of station terms, and correlation of single-site residuals) ar relatively similar.
+This is typically the case for correlations of PSA.
 
 
 ``` r
@@ -2596,8 +2601,8 @@ draws <- fit_stan$draws()
 rv <- as_draws_rvars(draws)
 ```
 
-For a real analsswe should probably run the chains with more observations, but for a quick demonstration this is enough.
-First we look ata summary of estimated standard deviations and correlation coefficients.
+For a real analsys we should probably run the chains with more iterations, but for a quick demonstration this is enough.
+First we look at a summary of estimated standard deviations and correlation coefficients.
 Overall, the fit is ok.
 
 
@@ -2670,7 +2675,7 @@ patchwork::wrap_plots(
 <img src="pictures/sim2-corr-stan-plots-1.png" width="100%" />
 
 
-In the plot above, the posterior distribution of the total correlation coefficient is calclatedform the posterior samples of the standard deviations and correlatio coefficients, and thus also accounts for uncertainty of the standard devations.
+In the plot above, the posterior distribution of the total correlation coefficient is calclated from the posterior samples of the standard deviations and correlatio coefficients, and thus also accounts for uncertainty of the standard devations.
 We can compare this with a calculation that uses a point estimate for the standard deviations.
 In this case, the uncertainty of the total correlation is slightly lower, but the difference is small and shouldn't matter in practice.
 
@@ -2691,6 +2696,271 @@ c(rho_total_stan, rho_total_stan2)
 ## [1] 0.9 ± 0.0041  0.9 ± 0.0036
 ```
 
+### Simulation 2
+
+Now, we simulate data with correlation values that are more different.
+The values are taken from the model of @Bayless2019, for frequency pairs $f_1 = 1.0$ Hz and $f_2 = 1.34$Hz.
+For FAS, it is often the case that the three correlations are not very similar.
+
+
+``` r
+tau_sim1 <- 0.4
+phi_s2s_sim1 <- 0.43
+phi_ss_sim1 <- 0.5
+
+tau_sim2 <- 0.45
+phi_s2s_sim2 <- 0.4
+phi_ss_sim2 <- 0.55
+
+rho_tau <- 0.95
+rho_ss <- 0.54
+rho_s2s <- 0.77
+
+sigma_tot1 <- sqrt(tau_sim1^2 + phi_s2s_sim1^2 + phi_ss_sim1^2)
+sigma_tot2 <- sqrt(tau_sim2^2 + phi_s2s_sim2^2 + phi_ss_sim2^2)
+
+rho_total <- (rho_tau * tau_sim1 * tau_sim2 + 
+                rho_s2s * phi_s2s_sim1 * phi_s2s_sim2 + 
+                rho_ss * phi_ss_sim1 * phi_ss_sim2) / 
+  (sigma_tot1 * sigma_tot2)
+
+cov_tau <- matrix(c(tau_sim1^2, rho_tau * tau_sim1 * tau_sim2,
+                    rho_tau * tau_sim1 * tau_sim2, tau_sim2^2), ncol = 2)
+cov_s2s <- matrix(c(phi_s2s_sim1^2, rho_s2s * phi_s2s_sim1 * phi_s2s_sim2,
+                    rho_s2s * phi_s2s_sim1 * phi_s2s_sim2, phi_s2s_sim2^2), ncol = 2)
+cov_ss <- matrix(c(phi_ss_sim1^2, rho_ss * phi_ss_sim1 * phi_ss_sim2,
+                   rho_ss * phi_ss_sim1 * phi_ss_sim2, phi_ss_sim2^2), ncol = 2)
+
+eqt2 <- mvtnorm::rmvnorm(n_eq, sigma = cov_tau)
+statt2 <- mvtnorm::rmvnorm(n_stat, sigma = cov_s2s)
+rect2 <- mvtnorm::rmvnorm(n_rec, sigma = cov_ss)
+
+data_reg$y_sim1 <- eqt2[eq,1] + statt2[stat,1] + rect2[,1]
+data_reg$y_sim2 <- eqt2[eq,2] + statt2[stat,2] + rect2[,2]
+
+fit_sim1 <- lmer(y_sim1 ~ (1 | eq) + (1 | stat), data_reg)
+fit_sim2 <- lmer(y_sim2 ~ (1 | eq) + (1 | stat), data_reg)
+
+dB1 <- ranef(fit_sim1)$eq$`(Intercept)`
+dS1 <- ranef(fit_sim1)$stat$`(Intercept)`
+dWS1 <- resid(fit_sim1)
+dR1 <- data_reg$y_sim1 - predict(fit_sim1, re.form=NA)
+
+dB2 <- ranef(fit_sim2)$eq$`(Intercept)`
+dS2 <- ranef(fit_sim2)$stat$`(Intercept)`
+dWS2 <- resid(fit_sim2)
+dR2 <- data_reg$y_sim2 - predict(fit_sim2, re.form=NA)
+
+sds1 <- as.data.frame(VarCorr(fit_sim1))$sdcor
+sds2 <- as.data.frame(VarCorr(fit_sim2))$sdcor
+
+sds1a <- c(sd(dS1), sd(dB1), sd(dWS1))
+sds2a <- c(sd(dS2), sd(dB2), sd(dWS2))
+
+rho_t <- (sds1[1] * sds2[1] * cor(dS1, dS2) +
+            sds1[2] * sds2[2] * cor(dB1, dB2) +
+            sds1[3] * sds2[3] * cor(dWS1, dWS2)) /
+  (sqrt(sum(sds1^2)) * sqrt(sum(sds2^2)))
+
+rho_ta <- (sds1a[1] * sds2a[1] * cor(dS1, dS2) +
+             sds1a[2] * sds2a[2] * cor(dB1, dB2) +
+             sds1a[3] * sds2a[3] * cor(dWS1, dWS2)) /
+  (sqrt(sum(sds1a^2)) * sqrt(sum(sds2a^2)))
+
+df <- data.frame(dS = c(rho_s2s, cor(dS1,dS2), cov(dS1,dS2)/(sd(dS1) * sd(dS2)), cov(dS1,dS2)/(sds1[1] * sds2[1])),
+           dB = c(rho_tau, cor(dB1,dB2), cov(dB1,dB2)/(sd(dB1) * sd(dB2)), cov(dB1,dB2)/(sds1[2] * sds2[2])),
+           dWS = c(rho_ss, cor(dWS1,dWS2), cov(dWS1,dWS2)/(sd(dWS1) * sd(dWS2)), cov(dWS1,dWS2)/(sds1[3] * sds2[3])),
+           dR = c(rho_total, cor(dR1, dR2), rho_t, rho_ta),
+           row.names = c('true','cor','cov/sd(point estimate)','cov()/hat()'))
+knitr::kable(df, digits = 3, row.names = TRUE,
+             caption = "Estimated correlation coefficients.")
+```
+
+
+
+Table: Estimated correlation coefficients.
+
+|                       |    dS|    dB|   dWS|    dR|
+|:----------------------|-----:|-----:|-----:|-----:|
+|true                   | 0.770| 0.950| 0.540| 0.719|
+|cor                    | 0.701| 0.906| 0.558| 0.714|
+|cov/sd(point estimate) | 0.701| 0.906| 0.558| 0.694|
+|cov()/hat()            | 0.424| 0.803| 0.506| 0.691|
+
+We see that in this case, the correlation are not well estimated, which is due to the fact that the ucerainty in the random effects is taken into account.
+
+Running the Bayesian one-step model on the same simulations leads to better results.
+
+
+``` r
+data_list <- list(
+  N = n_rec,
+  NEQ = n_eq,
+  NSTAT = n_stat,
+  Y = data_reg[,c('y_sim1','y_sim2')],
+  eq = eq,
+  stat = stat
+)
+
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_corrre_cond.stan'))
+
+fit_stan <- mod$sample(
+  data = data_list,
+  seed = 8472,
+  chains = 4,
+  iter_sampling = 200,
+  iter_warmup = 300,
+  refresh = 100,
+  max_treedepth = 10,
+  adapt_delta = 0.8,
+  parallel_chains = 2,
+  show_exceptions = FALSE
+)
+```
+
+```
+## Running MCMC with 4 chains, at most 2 in parallel...
+## 
+## Chain 1 Iteration:   1 / 500 [  0%]  (Warmup) 
+## Chain 2 Iteration:   1 / 500 [  0%]  (Warmup) 
+## Chain 1 Iteration: 100 / 500 [ 20%]  (Warmup) 
+## Chain 2 Iteration: 100 / 500 [ 20%]  (Warmup) 
+## Chain 1 Iteration: 200 / 500 [ 40%]  (Warmup) 
+## Chain 2 Iteration: 200 / 500 [ 40%]  (Warmup) 
+## Chain 2 Iteration: 300 / 500 [ 60%]  (Warmup) 
+## Chain 2 Iteration: 301 / 500 [ 60%]  (Sampling) 
+## Chain 1 Iteration: 300 / 500 [ 60%]  (Warmup) 
+## Chain 1 Iteration: 301 / 500 [ 60%]  (Sampling) 
+## Chain 2 Iteration: 400 / 500 [ 80%]  (Sampling) 
+## Chain 1 Iteration: 400 / 500 [ 80%]  (Sampling) 
+## Chain 2 Iteration: 500 / 500 [100%]  (Sampling) 
+## Chain 2 finished in 751.5 seconds.
+## Chain 3 Iteration:   1 / 500 [  0%]  (Warmup) 
+## Chain 1 Iteration: 500 / 500 [100%]  (Sampling) 
+## Chain 1 finished in 772.9 seconds.
+## Chain 4 Iteration:   1 / 500 [  0%]  (Warmup) 
+## Chain 4 Iteration: 100 / 500 [ 20%]  (Warmup) 
+## Chain 3 Iteration: 100 / 500 [ 20%]  (Warmup) 
+## Chain 4 Iteration: 200 / 500 [ 40%]  (Warmup) 
+## Chain 3 Iteration: 200 / 500 [ 40%]  (Warmup) 
+## Chain 4 Iteration: 300 / 500 [ 60%]  (Warmup) 
+## Chain 4 Iteration: 301 / 500 [ 60%]  (Sampling) 
+## Chain 3 Iteration: 300 / 500 [ 60%]  (Warmup) 
+## Chain 3 Iteration: 301 / 500 [ 60%]  (Sampling) 
+## Chain 4 Iteration: 400 / 500 [ 80%]  (Sampling) 
+## Chain 3 Iteration: 400 / 500 [ 80%]  (Sampling) 
+## Chain 4 Iteration: 500 / 500 [100%]  (Sampling) 
+## Chain 4 finished in 790.2 seconds.
+## Chain 3 Iteration: 500 / 500 [100%]  (Sampling) 
+## Chain 3 finished in 838.8 seconds.
+## 
+## All 4 chains finished successfully.
+## Mean chain execution time: 788.4 seconds.
+## Total execution time: 1591.0 seconds.
+```
+
+``` r
+print(fit_stan$cmdstan_diagnose())
+```
+
+```
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-1-4a656c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-2-4a656c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-3-4a656c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-4-4a656c.csv
+## 
+## Checking sampler transitions treedepth.
+## Treedepth satisfactory for all transitions.
+## 
+## Checking sampler transitions for divergences.
+## No divergent transitions found.
+## 
+## Checking E-BFMI - sampler transitions HMC potential energy.
+## E-BFMI satisfactory.
+## 
+## Effective sample size satisfactory.
+## 
+## Split R-hat values satisfactory all parameters.
+## 
+## Processing complete, no problems detected.
+## $status
+## [1] 0
+## 
+## $stdout
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-1-4a656c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-2-4a656c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-3-4a656c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-4-4a656c.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## 
+## $stderr
+## [1] ""
+## 
+## $timeout
+## [1] FALSE
+```
+
+``` r
+print(fit_stan$diagnostic_summary())
+```
+
+```
+## $num_divergent
+## [1] 0 0 0 0
+## 
+## $num_max_treedepth
+## [1] 0 0 0 0
+## 
+## $ebfmi
+## [1] 0.8625748 0.4696211 0.7698291 0.7925519
+```
+
+``` r
+draws <- fit_stan$draws()
+rv <- as_draws_rvars(draws)
+
+summarise_draws(subset(draws, variable = c('tau','phi','rho'), regex = TRUE))
+```
+
+```
+## # A tibble: 9 × 10
+##   variable    mean median      sd     mad    q5   q95  rhat ess_bulk ess_tail
+##   <chr>      <dbl>  <dbl>   <dbl>   <dbl> <dbl> <dbl> <dbl>    <dbl>    <dbl>
+## 1 tau[1]     0.391  0.391 0.0181  0.0177  0.361 0.421 1.01     1094.     634.
+## 2 tau[2]     0.435  0.435 0.0204  0.0198  0.403 0.472 1.00     1404.     736.
+## 3 phi_ss[1]  0.495  0.495 0.00320 0.00317 0.490 0.501 1.00      768.     732.
+## 4 phi_ss[2]  0.548  0.548 0.00365 0.00355 0.542 0.554 1.00      872.     518.
+## 5 phi_s2s[1] 0.413  0.413 0.0116  0.0113  0.393 0.432 1.00      596.     669.
+## 6 phi_s2s[2] 0.404  0.404 0.0120  0.0114  0.385 0.424 0.998     637.     597.
+## 7 rho_rec    0.551  0.551 0.00684 0.00699 0.539 0.562 1.00     1469.     521.
+## 8 rho_eq     0.945  0.946 0.00877 0.00795 0.930 0.959 0.999     732.     569.
+## 9 rho_stat   0.768  0.768 0.0189  0.0200  0.736 0.798 1.01      326.     574.
+```
+
+Below the posterior distributions are shown, together with the estimates based on separate regressions using `lmer`.
+The Bayesian models captures the true values quite well.
+
+
+``` r
+rho_total_stan <- (rv$phi_ss[1] * rv$phi_ss[2] * rv$rho_rec +
+                     rv$phi_s2s[1] * rv$phi_s2s[2] * rv$rho_stat +
+                     rv$tau[1] * rv$tau[2] * rv$rho_eq) /
+  (sqrt(rv$phi_ss[1]^2 + rv$phi_s2s[1]^2 + rv$tau[1]^2) * sqrt(rv$phi_ss[2]^2 + rv$phi_s2s[2]^2 + rv$tau[2]^2))
+
+patchwork::wrap_plots(
+  mcmc_dens(draws, pars = 'rho_eq') +
+    vline_at(rho_tau, linewidth = 1.5) +
+    vline_at(cor(dB1,dB2), linewidth = 1.5, color = 'red') +
+    vline_at(calc_ci(cor(dB1,dB2), n_eq), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+  mcmc_dens(draws, pars = 'rho_stat') +
+    vline_at(rho_s2s, linewidth = 1.5) +
+    vline_at(cor(dS1,dS2), linewidth = 1.5, color = 'red') +
+    vline_at(calc_ci(cor(dS1,dS2), n_stat), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+  mcmc_dens(draws, pars = 'rho_rec') +
+    vline_at(rho_ss, linewidth = 1.5) +
+    vline_at(cor(dWS1,dWS2), linewidth = 1.5, color = 'red') +
+    vline_at(calc_ci(cor(dWS1,dWS2), n_rec), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+  mcmc_dens(as_draws(rho_total_stan)) +
+    vline_at(rho_total, linewidth = 1.5) +
+    vline_at(rho_t, linewidth = 1.5, color = 'red') +
+    labs(x = 'rho_total')
+)
+```
+
+<img src="pictures/sim2-corr-stan-plots2-1.png" width="100%" />
 
 ## Correlation with e.g. Stress Drop
 
@@ -2785,10 +3055,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 89.3 seconds.
+## Chain 1 finished in 44.9 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 91.1 seconds.
+## Chain 2 finished in 45.4 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -2799,13 +3069,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 86.4 seconds.
+## Chain 4 finished in 38.9 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 94.4 seconds.
+## Chain 3 finished in 41.2 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 90.3 seconds.
-## Total execution time: 184.2 seconds.
+## Mean chain execution time: 42.6 seconds.
+## Total execution time: 86.4 seconds.
 ```
 
 ``` r
@@ -2813,7 +3083,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-1-80c7c2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-2-80c7c2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-3-80c7c2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-4-80c7c2.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-1-81513c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-2-81513c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-3-81513c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-4-81513c.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2833,7 +3103,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-1-80c7c2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-2-80c7c2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-3-80c7c2.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTUiZ6p/gmm_partition_wvar_corr-202406171507-4-80c7c2.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-1-81513c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-2-81513c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-3-81513c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-4-81513c.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""

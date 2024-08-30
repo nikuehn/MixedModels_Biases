@@ -1421,6 +1421,11 @@ where $IM1$ and $IM2$ are different ground-motion intensity measures.
 There are again different possible choices for the use of the standard deviations.
 We calculate the total correlation usng the best estimate (REML), the sample standard deviation, and also as the correlation of total residuals.
 
+### Simulation 1
+
+First, we simulate data with relatively high correlations.
+The three correlations (corelaton of event terms, correlation of station terms, and correlation of single-site residuals) ar relatively similar.
+This is typically the case for correlations of PSA.
 
 ``` {r sim2-corr}
 tau_sim1 <- 0.4
@@ -1529,8 +1534,8 @@ draws <- fit_stan$draws()
 rv <- as_draws_rvars(draws)
 ```
 
-For a real analsswe should probably run the chains with more observations, but for a quick demonstration this is enough.
-First we look ata summary of estimated standard deviations and correlation coefficients.
+For a real analsys we should probably run the chains with more iterations, but for a quick demonstration this is enough.
+First we look at a summary of estimated standard deviations and correlation coefficients.
 Overall, the fit is ok.
 
 ``` {r sim2-corr-stan-summary}
@@ -1585,7 +1590,7 @@ patchwork::wrap_plots(
 ```
 
 
-In the plot above, the posterior distribution of the total correlation coefficient is calclatedform the posterior samples of the standard deviations and correlatio coefficients, and thus also accounts for uncertainty of the standard devations.
+In the plot above, the posterior distribution of the total correlation coefficient is calclated from the posterior samples of the standard deviations and correlatio coefficients, and thus also accounts for uncertainty of the standard devations.
 We can compare this with a calculation that uses a point estimate for the standard deviations.
 In this case, the uncertainty of the total correlation is slightly lower, but the difference is small and shouldn't matter in practice.
 
@@ -1600,6 +1605,150 @@ rho_total_stan2 <- (mean(rv$phi_ss[1]) * mean(rv$phi_ss[2]) * rv$rho_rec +
 c(rho_total_stan, rho_total_stan2)
 ```
 
+### Simulation 2
+
+Now, we simulate data with correlation values that are more different.
+The values are taken from the model of @Bayless2019, for frequency pairs $f_1 = 1.0$ Hz and $f_2 = 1.34$Hz.
+For FAS, it is often the case that the three correlations are not very similar.
+
+``` {r sim2-corr-2}
+tau_sim1 <- 0.4
+phi_s2s_sim1 <- 0.43
+phi_ss_sim1 <- 0.5
+
+tau_sim2 <- 0.45
+phi_s2s_sim2 <- 0.4
+phi_ss_sim2 <- 0.55
+
+rho_tau <- 0.95
+rho_ss <- 0.54
+rho_s2s <- 0.77
+
+sigma_tot1 <- sqrt(tau_sim1^2 + phi_s2s_sim1^2 + phi_ss_sim1^2)
+sigma_tot2 <- sqrt(tau_sim2^2 + phi_s2s_sim2^2 + phi_ss_sim2^2)
+
+rho_total <- (rho_tau * tau_sim1 * tau_sim2 + 
+                rho_s2s * phi_s2s_sim1 * phi_s2s_sim2 + 
+                rho_ss * phi_ss_sim1 * phi_ss_sim2) / 
+  (sigma_tot1 * sigma_tot2)
+
+cov_tau <- matrix(c(tau_sim1^2, rho_tau * tau_sim1 * tau_sim2,
+                    rho_tau * tau_sim1 * tau_sim2, tau_sim2^2), ncol = 2)
+cov_s2s <- matrix(c(phi_s2s_sim1^2, rho_s2s * phi_s2s_sim1 * phi_s2s_sim2,
+                    rho_s2s * phi_s2s_sim1 * phi_s2s_sim2, phi_s2s_sim2^2), ncol = 2)
+cov_ss <- matrix(c(phi_ss_sim1^2, rho_ss * phi_ss_sim1 * phi_ss_sim2,
+                   rho_ss * phi_ss_sim1 * phi_ss_sim2, phi_ss_sim2^2), ncol = 2)
+
+eqt2 <- mvtnorm::rmvnorm(n_eq, sigma = cov_tau)
+statt2 <- mvtnorm::rmvnorm(n_stat, sigma = cov_s2s)
+rect2 <- mvtnorm::rmvnorm(n_rec, sigma = cov_ss)
+
+data_reg$y_sim1 <- eqt2[eq,1] + statt2[stat,1] + rect2[,1]
+data_reg$y_sim2 <- eqt2[eq,2] + statt2[stat,2] + rect2[,2]
+
+fit_sim1 <- lmer(y_sim1 ~ (1 | eq) + (1 | stat), data_reg)
+fit_sim2 <- lmer(y_sim2 ~ (1 | eq) + (1 | stat), data_reg)
+
+dB1 <- ranef(fit_sim1)$eq$`(Intercept)`
+dS1 <- ranef(fit_sim1)$stat$`(Intercept)`
+dWS1 <- resid(fit_sim1)
+dR1 <- data_reg$y_sim1 - predict(fit_sim1, re.form=NA)
+
+dB2 <- ranef(fit_sim2)$eq$`(Intercept)`
+dS2 <- ranef(fit_sim2)$stat$`(Intercept)`
+dWS2 <- resid(fit_sim2)
+dR2 <- data_reg$y_sim2 - predict(fit_sim2, re.form=NA)
+
+sds1 <- as.data.frame(VarCorr(fit_sim1))$sdcor
+sds2 <- as.data.frame(VarCorr(fit_sim2))$sdcor
+
+sds1a <- c(sd(dS1), sd(dB1), sd(dWS1))
+sds2a <- c(sd(dS2), sd(dB2), sd(dWS2))
+
+rho_t <- (sds1[1] * sds2[1] * cor(dS1, dS2) +
+            sds1[2] * sds2[2] * cor(dB1, dB2) +
+            sds1[3] * sds2[3] * cor(dWS1, dWS2)) /
+  (sqrt(sum(sds1^2)) * sqrt(sum(sds2^2)))
+
+rho_ta <- (sds1a[1] * sds2a[1] * cor(dS1, dS2) +
+             sds1a[2] * sds2a[2] * cor(dB1, dB2) +
+             sds1a[3] * sds2a[3] * cor(dWS1, dWS2)) /
+  (sqrt(sum(sds1a^2)) * sqrt(sum(sds2a^2)))
+
+df <- data.frame(dS = c(rho_s2s, cor(dS1,dS2), cov(dS1,dS2)/(sd(dS1) * sd(dS2)), cov(dS1,dS2)/(sds1[1] * sds2[1])),
+           dB = c(rho_tau, cor(dB1,dB2), cov(dB1,dB2)/(sd(dB1) * sd(dB2)), cov(dB1,dB2)/(sds1[2] * sds2[2])),
+           dWS = c(rho_ss, cor(dWS1,dWS2), cov(dWS1,dWS2)/(sd(dWS1) * sd(dWS2)), cov(dWS1,dWS2)/(sds1[3] * sds2[3])),
+           dR = c(rho_total, cor(dR1, dR2), rho_t, rho_ta),
+           row.names = c('true','cor','cov/sd(point estimate)','cov()/hat()'))
+knitr::kable(df, digits = 3, row.names = TRUE,
+             caption = "Estimated correlation coefficients.")
+```
+
+We see that in this case, the correlation are not well estimated, which is due to the fact that the ucerainty in the random effects is taken into account.
+
+Running the Bayesian one-step model on the same simulations leads to better results.
+
+``` {r sim2-corr-stan2, cache = TRUE}
+data_list <- list(
+  N = n_rec,
+  NEQ = n_eq,
+  NSTAT = n_stat,
+  Y = data_reg[,c('y_sim1','y_sim2')],
+  eq = eq,
+  stat = stat
+)
+
+mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_partition_corrre_cond.stan'))
+
+fit_stan <- mod$sample(
+  data = data_list,
+  seed = 8472,
+  chains = 4,
+  iter_sampling = 200,
+  iter_warmup = 300,
+  refresh = 100,
+  max_treedepth = 10,
+  adapt_delta = 0.8,
+  parallel_chains = 2,
+  show_exceptions = FALSE
+)
+print(fit_stan$cmdstan_diagnose())
+print(fit_stan$diagnostic_summary())
+draws <- fit_stan$draws()
+rv <- as_draws_rvars(draws)
+
+summarise_draws(subset(draws, variable = c('tau','phi','rho'), regex = TRUE))
+```
+
+Below the posterior distributions are shown, together with the estimates based on separate regressions using `lmer`.
+The Bayesian models captures the true values quite well.
+
+``` {r sim2-corr-stan-plots2, out.width = '100%', fig.width=16}
+
+rho_total_stan <- (rv$phi_ss[1] * rv$phi_ss[2] * rv$rho_rec +
+                     rv$phi_s2s[1] * rv$phi_s2s[2] * rv$rho_stat +
+                     rv$tau[1] * rv$tau[2] * rv$rho_eq) /
+  (sqrt(rv$phi_ss[1]^2 + rv$phi_s2s[1]^2 + rv$tau[1]^2) * sqrt(rv$phi_ss[2]^2 + rv$phi_s2s[2]^2 + rv$tau[2]^2))
+
+patchwork::wrap_plots(
+  mcmc_dens(draws, pars = 'rho_eq') +
+    vline_at(rho_tau, linewidth = 1.5) +
+    vline_at(cor(dB1,dB2), linewidth = 1.5, color = 'red') +
+    vline_at(calc_ci(cor(dB1,dB2), n_eq), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+  mcmc_dens(draws, pars = 'rho_stat') +
+    vline_at(rho_s2s, linewidth = 1.5) +
+    vline_at(cor(dS1,dS2), linewidth = 1.5, color = 'red') +
+    vline_at(calc_ci(cor(dS1,dS2), n_stat), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+  mcmc_dens(draws, pars = 'rho_rec') +
+    vline_at(rho_ss, linewidth = 1.5) +
+    vline_at(cor(dWS1,dWS2), linewidth = 1.5, color = 'red') +
+    vline_at(calc_ci(cor(dWS1,dWS2), n_rec), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+  mcmc_dens(as_draws(rho_total_stan)) +
+    vline_at(rho_total, linewidth = 1.5) +
+    vline_at(rho_t, linewidth = 1.5, color = 'red') +
+    labs(x = 'rho_total')
+)
+```
 
 ## Correlation with e.g. Stress Drop
 
