@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "30 August, 2024, first published 14 September 2023."
+date: "31 August, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -73,6 +73,7 @@ library(posterior)
 library(bayesplot)
 library(tidyverse)
 library(INLA)
+library(spaMM)
 library(matrixStats)
 library(latex2exp)
 ```
@@ -456,6 +457,7 @@ patchwork::wrap_plots(p1,p2)
 ```
 
 <img src="pictures/example-plot-se-1.png" width="100%" />
+
 Below we compare the standard deviations for $\delta WS$.
 For `lmer`, this is an approximation, calculated as $\psi(\widehat{\delta WS})^2 = \psi(\widehat{\delta B})^2 + \psi(\widehat{\delta S})^2$.
 At larger values of $\psi(\widehat{\delta WS})$, the values from `lmer` are larger compared to the ones from Inla or Stan, which is probably due to some correlations between (estimated) event terms and site terms.
@@ -3055,10 +3057,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 44.9 seconds.
+## Chain 1 finished in 34.4 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 45.4 seconds.
+## Chain 2 finished in 34.7 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -3069,13 +3071,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 38.9 seconds.
+## Chain 4 finished in 34.1 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 41.2 seconds.
+## Chain 3 finished in 35.8 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 42.6 seconds.
-## Total execution time: 86.4 seconds.
+## Mean chain execution time: 34.7 seconds.
+## Total execution time: 70.5 seconds.
 ```
 
 ``` r
@@ -3083,7 +3085,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-1-81513c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-2-81513c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-3-81513c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-4-81513c.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-1-80f64b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-2-80f64b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-3-80f64b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-4-80f64b.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -3103,7 +3105,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-1-81513c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-2-81513c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-3-81513c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_wvar_corr-202408301030-4-81513c.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-1-80f64b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-2-80f64b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-3-80f64b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-4-80f64b.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -3438,7 +3440,32 @@ fit_inla_spatial_total <- inla(form_spatial_total,
 )
 ```
 
+We can also fit the model using function `fitme` from the `spaMM` package [@Rousset2014].
+We fix the value of $\nu$ in the Matern correlation function to $\nu = 1$, the value used in the simulation.
+
+
+``` r
+data_reg$X_stat <- co_stat_utm[stat, 1]
+data_reg$Y_stat <- co_stat_utm[stat, 2]
+fit_spamm <- fitme(y_sim ~ M1 + M2 + MlogR + logR + R + Fss + Frv + logVS + (1|eq) + (1|stat) +
+                     Matern(1 | X_stat + Y_stat), data_reg, fixed=list(nu=1))
+```
+
+```
+## (One-time message:) Choosing matrix methods took 2.49 s.
+##   If you perform many similarly costly fits, setting the method
+##   by control.HLfit=list(algebra=<"spprec"|"spcorr"|"decorr">) may be useful,
+##   see help("algebra"). "spcorr" has been selected here.
+```
+
+``` r
+range_spamm <- sqrt(8)/fit_spamm$corrPars$`3`$rho
+varcorr_spamm <- VarCorr(fit_spamm)
+```
+
 Below, we plot the posterior distributions of the spatial range as well as the associated standard deviation.
+We also plot the point estimates from the `spaMM` fit as cyan vertical lines.
+The true values are shown as black vertical lines.
 
 
 ``` r
@@ -3456,6 +3483,7 @@ p1 <- rbind(
   ggplot() +
   geom_line(aes(x = x, y = y, color = mod), linewidth = 1.5) +
   geom_vline(xintercept = range, linewidth = 1.5) +
+  geom_vline(xintercept = range_spamm, linewidth = 1.5, color = 'cyan') +
   labs(x = 'spatial range (km)', 'density') +
   theme(legend.position = c(0.8,0.8)) +
   guides(color = guide_legend(title = NULL))
@@ -3484,6 +3512,8 @@ p2 <- rbind(
   geom_line(aes(x = x, y = y, color = mod, linetype = type), linewidth = 1.5) +
   geom_vline(xintercept = phi_s2s_c, linewidth = 1.5, linetype = 'dashed') +
   geom_vline(xintercept = phi_s2s_0, linewidth = 1.5) +
+  geom_vline(xintercept = varcorr_spamm$Std.Dev.[3], linewidth = 1.5, linetype = 'dashed', color = 'cyan') +
+  geom_vline(xintercept = varcorr_spamm$Std.Dev.[2], linewidth = 1.5, color = 'cyan') +
   labs(x = 'phi_S2S_c', 'density') +
   theme(legend.position = c(0.8,0.8)) +
   guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL))
@@ -3496,6 +3526,8 @@ patchwork::wrap_plots(p1, p2)
 We can see that the spatial range is quite well estimated for all approaches, and that the full model and the model based on total residuals give almost the same results.
 The model based on site terms does not lead to good results for the standard deviations, in particular for $\phi_{S2S,c}$, which is severely underestimated.
 The relative sizes of standard devations based on the fit from $\delta S$ are wrongly estimated.
+The parameter estimates of `spaMM' are quite good, but they lack confidence intervals.
+These can be calculate via the bootstrap, which is computationally intensive.
 
 
 Below, we plot differences predictions of the spatially correlated site terms between the different models.
@@ -3604,7 +3636,39 @@ fit_sim_cell_dR <- inla(dR_lmer ~ 0 + intercept + R +
 )
 ```
 
-Ths shows the posterior distribution of the standard deviation of the cell-specific attenuation coefficients, which is understimated from $\delta WS$.
+In the previous cell, we have used `lmer` to fit a simple model without cell-speecific attenuation, and then estimated the cell-specific attenuation coefficients with `inla`.
+It is possible to estimate the cell-specific attenuation coefficents and standard deviation using `lmer`, using some tricks.
+The followngis taken from <https://bbolker.github.io/mixedmodels-misc/notes/multimember.html>.
+Since the cell-specific modelis basically a random-effects model where the cell-specific distance matrix is the design matrix of the random effects, we can adjust this matrix.
+
+
+``` r
+cell_names <- seq(n_cell)
+dimnames(dm_sparse) <- list(NULL, cell_names)
+
+data_reg$z <- rep(cell_names, length.out=n_rec) # need to create a fake randdomeffect grouping term
+lmod <- lFormula(y_sim ~ M1 + M2 + logR + MlogR + R + Fss + Frv + logVS + (1|eq) + (1|stat) +
+                   (1 | z), data=data_reg)
+print(lmod$reTrms$nl)
+```
+
+```
+## stat    z   eq 
+##  923  603  137
+```
+
+``` r
+# the cell-specific random effect is he second in the model structure
+lmod$reTrms$Ztlist[[2]] <- Matrix(t(dm_sparse))
+lmod$reTrms$Zt[(n_stat + 1):(n_stat + n_cell),] <- Matrix(t(dm_sparse))
+
+devfun <- do.call(mkLmerDevfun, lmod)
+opt <- optimizeLmer(devfun)
+fit_sim_cell_lmer <- mkMerMod(environment(devfun), opt, lmod$reTrms, fr = lmod$fr)
+```
+
+The following plot shows the posterior distribution of the standard deviation of the cell-specific attenuation coefficients, which is understimated from $\delta WS$.
+The estimate from the full `lmer` fit is shown as a vertical cyan line.
 
 
 ``` r
@@ -3621,9 +3685,14 @@ rbind(data.frame(inla.tmarginal(function(x) sqrt(exp(-x)),
   ggplot() +
   geom_line(aes(x = x, y = y, color = mod), linewidth = 1.5) +
   geom_vline(xintercept = sigma_cell_sim, linewidth = 1.5) +
+  geom_vline(xintercept = as.data.frame(VarCorr(fit_sim_cell_lmer))$sdcor[2], linewidth = 1.5, color ='cyan')
   labs(x = 'sigma_cell', 'density') +
   theme(legend.position = c(0.8,0.8)) +
   guides(color = guide_legend(title = NULL))
+```
+
+```
+## NULL
 ```
 
 <img src="pictures/sim-it-inla-results-1.png" width="50%" />

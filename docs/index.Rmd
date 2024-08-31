@@ -76,6 +76,7 @@ library(posterior)
 library(bayesplot)
 library(tidyverse)
 library(INLA)
+library(spaMM)
 library(matrixStats)
 library(latex2exp)
 ```
@@ -329,6 +330,7 @@ p2 <- data.frame(unique(data_it[,c('STATID','vs30')]),
 
 patchwork::wrap_plots(p1,p2)
 ```
+
 Below we compare the standard deviations for $\delta WS$.
 For `lmer`, this is an approximation, calculated as $\psi(\widehat{\delta WS})^2 = \psi(\widehat{\delta B})^2 + \psi(\widehat{\delta S})^2$.
 At larger values of $\psi(\widehat{\delta WS})$, the values from `lmer` are larger compared to the ones from Inla or Stan, which is probably due to some correlations between (estimated) event terms and site terms.
@@ -2091,7 +2093,21 @@ fit_inla_spatial_total <- inla(form_spatial_total,
 )
 ```
 
+We can also fit the model using function `fitme` from the `spaMM` package [@Rousset2014].
+We fix the value of $\nu$ in the Matern correlation function to $\nu = 1$, the value used in the simulation.
+
+``` {r sim-it-spatial-spamm-fit, cache = TRUE}
+data_reg$X_stat <- co_stat_utm[stat, 1]
+data_reg$Y_stat <- co_stat_utm[stat, 2]
+fit_spamm <- fitme(y_sim ~ M1 + M2 + MlogR + logR + R + Fss + Frv + logVS + (1|eq) + (1|stat) +
+                     Matern(1 | X_stat + Y_stat), data_reg, fixed=list(nu=1))
+range_spamm <- sqrt(8)/fit_spamm$corrPars$`3`$rho
+varcorr_spamm <- VarCorr(fit_spamm)
+```
+
 Below, we plot the posterior distributions of the spatial range as well as the associated standard deviation.
+We also plot the point estimates from the `spaMM` fit as cyan vertical lines.
+The true values are shown as black vertical lines.
 
 ``` {r sim-it-spatial-results, out.width = '100%', fig.width=16}
 p1 <- rbind(
@@ -2108,6 +2124,7 @@ p1 <- rbind(
   ggplot() +
   geom_line(aes(x = x, y = y, color = mod), linewidth = 1.5) +
   geom_vline(xintercept = range, linewidth = 1.5) +
+  geom_vline(xintercept = range_spamm, linewidth = 1.5, color = 'cyan') +
   labs(x = 'spatial range (km)', 'density') +
   theme(legend.position = c(0.8,0.8)) +
   guides(color = guide_legend(title = NULL))
@@ -2136,6 +2153,8 @@ p2 <- rbind(
   geom_line(aes(x = x, y = y, color = mod, linetype = type), linewidth = 1.5) +
   geom_vline(xintercept = phi_s2s_c, linewidth = 1.5, linetype = 'dashed') +
   geom_vline(xintercept = phi_s2s_0, linewidth = 1.5) +
+  geom_vline(xintercept = varcorr_spamm$Std.Dev.[3], linewidth = 1.5, linetype = 'dashed', color = 'cyan') +
+  geom_vline(xintercept = varcorr_spamm$Std.Dev.[2], linewidth = 1.5, color = 'cyan') +
   labs(x = 'phi_S2S_c', 'density') +
   theme(legend.position = c(0.8,0.8)) +
   guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL))
@@ -2146,6 +2165,8 @@ patchwork::wrap_plots(p1, p2)
 We can see that the spatial range is quite well estimated for all approaches, and that the full model and the model based on total residuals give almost the same results.
 The model based on site terms does not lead to good results for the standard deviations, in particular for $\phi_{S2S,c}$, which is severely underestimated.
 The relative sizes of standard devations based on the fit from $\delta S$ are wrongly estimated.
+The parameter estimates of `spaMM' are quite good, but they lack confidence intervals.
+These can be calculate via the bootstrap, which is computationally intensive.
 
 
 Below, we plot differences predictions of the spatially correlated site terms between the different models.
@@ -2241,7 +2262,30 @@ fit_sim_cell_dR <- inla(dR_lmer ~ 0 + intercept + R +
 )
 ```
 
-Ths shows the posterior distribution of the standard deviation of the cell-specific attenuation coefficients, which is understimated from $\delta WS$.
+In the previous cell, we have used `lmer` to fit a simple model without cell-speecific attenuation, and then estimated the cell-specific attenuation coefficients with `inla`.
+It is possible to estimate the cell-specific attenuation coefficents and standard deviation using `lmer`, using some tricks.
+The followngis taken from <https://bbolker.github.io/mixedmodels-misc/notes/multimember.html>.
+Since the cell-specific modelis basically a random-effects model where the cell-specific distance matrix is the design matrix of the random effects, we can adjust this matrix.
+
+``` {r sim-cell-lmer-fit}
+cell_names <- seq(n_cell)
+dimnames(dm_sparse) <- list(NULL, cell_names)
+
+data_reg$z <- rep(cell_names, length.out=n_rec) # need to create a fake randdomeffect grouping term
+lmod <- lFormula(y_sim ~ M1 + M2 + logR + MlogR + R + Fss + Frv + logVS + (1|eq) + (1|stat) +
+                   (1 | z), data=data_reg)
+print(lmod$reTrms$nl)
+# the cell-specific random effect is he second in the model structure
+lmod$reTrms$Ztlist[[2]] <- Matrix(t(dm_sparse))
+lmod$reTrms$Zt[(n_stat + 1):(n_stat + n_cell),] <- Matrix(t(dm_sparse))
+
+devfun <- do.call(mkLmerDevfun, lmod)
+opt <- optimizeLmer(devfun)
+fit_sim_cell_lmer <- mkMerMod(environment(devfun), opt, lmod$reTrms, fr = lmod$fr)
+```
+
+The following plot shows the posterior distribution of the standard deviation of the cell-specific attenuation coefficients, which is understimated from $\delta WS$.
+The estimate from the full `lmer` fit is shown as a vertical cyan line.
 
 ``` {r sim-it-inla-results}
 rbind(data.frame(inla.tmarginal(function(x) sqrt(exp(-x)), 
@@ -2257,6 +2301,7 @@ rbind(data.frame(inla.tmarginal(function(x) sqrt(exp(-x)),
   ggplot() +
   geom_line(aes(x = x, y = y, color = mod), linewidth = 1.5) +
   geom_vline(xintercept = sigma_cell_sim, linewidth = 1.5) +
+  geom_vline(xintercept = as.data.frame(VarCorr(fit_sim_cell_lmer))$sdcor[2], linewidth = 1.5, color ='cyan')
   labs(x = 'sigma_cell', 'density') +
   theme(legend.position = c(0.8,0.8)) +
   guides(color = guide_legend(title = NULL))
