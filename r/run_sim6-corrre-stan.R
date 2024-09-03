@@ -52,8 +52,8 @@ for(cor_name in c('high','low')) {
   cov_ss <- matrix(c(phi_ss_sim1^2, rho_ss * phi_ss_sim1 * phi_ss_sim2,
                      rho_ss * phi_ss_sim1 * phi_ss_sim2, phi_ss_sim2^2), ncol = 2)
   
-  n_sam <- 50
-  mat_cor_stan <- matrix(nrow = n_sam, ncol =  6)
+  n_sam <- 100
+  mat_cor_stan <- matrix(nrow = n_sam, ncol =  8)
   set.seed(5618)
   for(i in 1:n_sam) {
     print(paste0('i = ',i))
@@ -84,11 +84,16 @@ for(cor_name in c('high','low')) {
     )
     draws <- fit$draws()
     rv <- as_draws_rvars(draws)
+    rho_total_stan <- (rv$phi_ss[1] * rv$phi_ss[2] * rv$rho_rec +
+                         rv$phi_s2s[1] * rv$phi_s2s[2] * rv$rho_stat +
+                         rv$tau[1] * rv$tau[2] * rv$rho_eq) /
+      (sqrt(rv$phi_ss[1]^2 + rv$phi_s2s[1]^2 + rv$tau[1]^2) * sqrt(rv$phi_ss[2]^2 + rv$phi_s2s[2]^2 + rv$tau[2]^2))
     
-    mat_cor_stan[i,] <- c(mean(rv$rho_stat), mean(rv$rho_eq), mean(rv$rho_rec),
+    mat_cor_stan[i,] <- c(mean(rv$rho_stat), mean(rv$rho_eq), mean(rv$rho_rec), mean(rho_total_stan),
                           sum(quantile(rv$rho_stat, 0.05) < rho_s2s & quantile(rv$rho_stat, 0.95) > rho_s2s),
                           sum(quantile(rv$rho_eq, 0.05) < rho_tau & quantile(rv$rho_eq, 0.95) > rho_tau),
-                          sum(quantile(rv$rho_rec, 0.05) < rho_ss & quantile(rv$rho_rec, 0.95) > rho_ss))
+                          sum(quantile(rv$rho_rec, 0.05) < rho_ss & quantile(rv$rho_rec, 0.95) > rho_ss),
+                          sum(quantile(rho_total_stan, 0.05) < rho_total & quantile(rho_total_stan, 0.95) > rho_total))
     print(mat_cor_stan[i,])
     
   }

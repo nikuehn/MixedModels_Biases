@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "31 August, 2024, first published 14 September 2023."
+date: "03 September, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -23,7 +23,7 @@ bibliography: /Users/nico/BIBLIOGRAPHY/BIBTEX/references.bib
 
 This page provides code for the simulations shown in ``Use of Simulation to Identify Potential Biases in Mixed-Effects Ground-Motion Models and Variance Components'', which highlights some biases that can occur when using point estimates of random effects/residuals in mixed effects ground-motion models.
 For details, see the paper.
-This repository is archived under < https://doi.org/10.5281/zenodo.10822835>.
+This repository is archived under <https://doi.org/10.5281/zenodo.10822834>.
 
 We use simulations from different models and/or using different data sets to illustrate potential biases.
 In particular, standard deviations are underestimated when they are calculated from point estimates of random effects/residuals.
@@ -2789,7 +2789,7 @@ Table: Estimated correlation coefficients.
 |cov/sd(point estimate) | 0.701| 0.906| 0.558| 0.694|
 |cov()/hat()            | 0.424| 0.803| 0.506| 0.691|
 
-We see that in this case, the correlation are not well estimated, which is due to the fact that the ucerainty in the random effects is taken into account.
+We see that in this case, the correlation are not well estimated, which is due to the fact that the uncertainty in the random effects is not taken into account.
 
 Running the Bayesian one-step model on the same simulations leads to better results.
 
@@ -2964,6 +2964,22 @@ patchwork::wrap_plots(
 
 <img src="pictures/sim2-corr-stan-plots2-1.png" width="100%" />
 
+
+``` r
+rho_total_stan2 <- (mean(rv$phi_ss[1]) * mean(rv$phi_ss[2]) * rv$rho_rec +
+                     mean(rv$phi_s2s[1]) * mean(rv$phi_s2s[2]) * rv$rho_stat +
+                     mean(rv$tau[1]) * mean(rv$tau[2]) * rv$rho_eq) /
+  (sqrt(mean(rv$phi_ss[1])^2 + mean(rv$phi_s2s[1])^2 + mean(rv$tau[1])^2) *
+     sqrt(mean(rv$phi_ss[2])^2 + mean(rv$phi_s2s[2])^2 + mean(rv$tau[2])^2))
+
+c(rho_total_stan, rho_total_stan2)
+```
+
+```
+## rvar<200,4>[2] mean ± sd:
+## [1] 0.72 ± 0.009  0.72 ± 0.006
+```
+
 ## Correlation with e.g. Stress Drop
 
 Often, correlations between event terms (typically for PGA) and stress drops are calcualted and investigated.
@@ -3057,10 +3073,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 34.4 seconds.
+## Chain 1 finished in 226.4 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 34.7 seconds.
+## Chain 2 finished in 227.8 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -3071,13 +3087,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 34.1 seconds.
+## Chain 4 finished in 133.0 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 35.8 seconds.
+## Chain 3 finished in 138.7 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 34.7 seconds.
-## Total execution time: 70.5 seconds.
+## Mean chain execution time: 181.5 seconds.
+## Total execution time: 365.9 seconds.
 ```
 
 ``` r
@@ -3085,7 +3101,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-1-80f64b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-2-80f64b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-3-80f64b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-4-80f64b.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-1-80bf53.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-2-80bf53.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-3-80bf53.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-4-80bf53.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -3105,7 +3121,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-1-80f64b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-2-80f64b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-3-80f64b.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmpg5lcb0/gmm_partition_wvar_corr-202408311231-4-80f64b.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-1-80bf53.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-2-80bf53.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-3-80bf53.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-4-80bf53.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -3953,6 +3969,7 @@ patchwork::wrap_plots(p1, p2)
 
 ## Correlations of Random Effects
 
+
 ``` r
 tau_sim1 <- 0.4
 phi_s2s_sim1 <- 0.43
@@ -3966,10 +3983,18 @@ sigma_tot1 <- sqrt(tau_sim1^2 + phi_s2s_sim1^2 + phi_ss_sim1^2)
 sigma_tot2 <- sqrt(tau_sim2^2 + phi_s2s_sim2^2 + phi_ss_sim2^2)
 ```
 
+### High Correlation
+
 
 ``` r
-load(file.path('./Git/MixedModels_Biases/', 'results',
-                                        'res_corrre_CB14_high.Rdata'))
+load(file.path('/Users/nico/GROUNDMOTION/PROJECTS/RESID_VAR/',
+  './Git/MixedModels_Biases/', 'results',
+               'res_corrre_CB14_high.Rdata'))
+load(file.path('/Users/nico/GROUNDMOTION/PROJECTS/RESID_VAR/',
+               './Git/MixedModels_Biases/', 'results',
+               'res_corrre_stan_CB14_high.Rdata'))
+mat_cor <- mat_cor[1:nrow(mat_cor_stan),]
+mat_cor_sample <- mat_cor_sample[1:nrow(mat_cor_stan),]
 
 rho_tau <- 0.95
 rho_ss <- 0.9
@@ -3985,40 +4010,33 @@ rho_total_sample <- (mat_cor_sample[,2] * tau_sim1 * tau_sim2 +
   (sigma_tot1 * sigma_tot2)
 
 patchwork::wrap_plots(
-  data.frame(mat_cor[,c(1,6)]) %>%
+  data.frame(a = mat_cor[,1],b = mat_cor_stan[,1], z = mat_cor_sample[,1]) %>%
     pivot_longer(everything()) %>%
     ggplot() +
-    geom_density(data.frame(x = mat_cor_sample[,1]),
-                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
     geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
     geom_vline(xintercept = rho_s2s, linewidth = lw) +
     labs(x = TeX('$\\rho(\\delta S_1, \\delta S_2)$')) +
-    scale_color_manual(values = c('red','blue'),
-                       labels = c(TeX('$\\rho_{sample}$'),
-                                  TeX('$cov_{sample}/(\\hat{\\sigma}_{1} \\; \\hat{\\sigma}_{2})$'))) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
     guides(color = guide_legend(title = NULL)) +
     theme(legend.position = c(0.4,0.8),
-          legend.key.width = unit(2,'cm')) +
-    #lims(x = c(0.25,0.6)),
-    lims(x = c(0.45,0.95)),
+          legend.key.width = unit(2,'cm'))
+  ,
   
-  data.frame(mat_cor[,c(2,7)]) %>%
+  data.frame(a = mat_cor[,2],b = mat_cor_stan[,2], z = mat_cor_sample[,2]) %>%
     pivot_longer(everything()) %>%
     ggplot() +
-    geom_density(data.frame(x = mat_cor_sample[,2]),
-                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
     geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
     geom_vline(xintercept = rho_tau, linewidth = lw) +
     labs(x = TeX('$\\rho(\\delta B_1, \\delta B_2)$')) +
-    scale_color_manual(values = c('red','blue'),
-                       labels = c(TeX('$\\rho_{sample}$'),'re2')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
     guides(color = guide_legend(title = NULL)) +
     theme(legend.position = 'none',
-          legend.key.width = unit(2,'cm')) +
-    #lims(x = c(0.3,0.6)),
-    lims(x = c(0.8,1.0)),
+          legend.key.width = unit(2,'cm')) 
+  ,
   
-  data.frame(mat_cor[,c(3,8)]) %>%
+  data.frame(a = mat_cor[,3],b = mat_cor_stan[,3], z = mat_cor_sample[,3]) %>%
     pivot_longer(everything()) %>%
     ggplot() +
     geom_density(data.frame(x = mat_cor_sample[,3]),
@@ -4026,29 +4044,23 @@ patchwork::wrap_plots(
     geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
     geom_vline(xintercept = rho_ss, linewidth = lw) +
     labs(x = TeX('$\\rho(\\delta WS_1, \\delta WS_2)$')) +
-    scale_color_manual(values = c('red','blue'),
-                       labels = c('re','re2')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
     guides(color = guide_legend(title = NULL)) +
     theme(legend.position = 'none',
-          legend.key.width = unit(2,'cm')) +
-    #lims(x = c(0.4,0.55)),
-    lims(x = c(0.8,0.95)),
-  
-  data.frame(mat_cor[,c(4,5,9)]) %>%
+          legend.key.width = unit(2,'cm')) 
+  ,
+  data.frame(a = mat_cor[,5],b = mat_cor_stan[,4],c = mat_cor[,4], z = rho_total_sample) %>%
     pivot_longer(everything()) %>%
     ggplot() +
-    geom_density(data.frame(x = rho_total_sample),
-                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
     geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
     geom_vline(xintercept = rho_total, linewidth = lw) +
     labs(x = TeX('$\\rho_{total}$')) +
-    scale_color_manual(values = c('red','blue','cyan'),
-                       labels = c("(1)","(2)",'(3)')) +
+    scale_color_manual(values = c('blue','red','cyan','gray'),
+                       labels = c('2-step lmer', '1-step stan', TeX('$\\delta R$'), 'sim')) +
     guides(color = guide_legend(title = NULL)) +
     theme(legend.position = c(0.2,0.8),
-          legend.key.width = unit(2,'cm')) +
-    #lims(x = c(0.45,0.55))
-    lims(x = c(0.875,0.925))
+          legend.key.width = unit(2,'cm'))
 )
 ```
 
@@ -4071,23 +4083,35 @@ func_ci <- function(cor, n, rho) {
 n_eq <- 274
 n_stat <- 1519
 n_rec <- 12482
-knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), func_ci(mat_cor[,1], n_stat, rho_s2s)),
-                        dB = c(func_ci(mat_cor_sample[,2], n_eq, rho_tau), func_ci(mat_cor[,2], n_eq, rho_tau)),
-                        dWS = c(func_ci(mat_cor_sample[,3], n_rec, rho_ss), func_ci(mat_cor[,3], n_rec, rho_ss)),
-                        row.names = c('simulated','estimated')),
+knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), 
+                               func_ci(mat_cor[,1], n_stat, rho_s2s),
+                               sum(mat_cor_stan[,5])/nrow(mat_cor_stan)),
+                        dB = c(func_ci(mat_cor_sample[,2], n_eq, rho_tau),
+                               func_ci(mat_cor[,2], n_eq, rho_tau),
+                               sum(mat_cor_stan[,6])/nrow(mat_cor_stan)),
+                        dWS = c(func_ci(mat_cor_sample[,3], n_rec, rho_ss), 
+                                func_ci(mat_cor[,3], n_rec, rho_ss),
+                                sum(mat_cor_stan[,7])/nrow(mat_cor_stan)),
+                        total = c(NA, 
+                                NA,
+                                sum(mat_cor_stan[,8])/nrow(mat_cor_stan)),
+                        row.names = c('simulated','estimated','stan')),
              row.names = TRUE,
              caption = "Fraction of correlation coefficiets inside 90% confidence interval."
-             )
+)
 ```
 
 
 
 Table: Fraction of correlation coefficiets inside 90% confidence interval.
 
-|          |    dS|    dB|   dWS|
-|:---------|-----:|-----:|-----:|
-|simulated | 0.925| 0.895| 0.890|
-|estimated | 0.360| 0.860| 0.785|
+|          |   dS|   dB|  dWS| total|
+|:---------|----:|----:|----:|-----:|
+|simulated | 0.95| 0.91| 0.89|    NA|
+|estimated | 0.39| 0.82| 0.79|    NA|
+|stan      | 0.86| 0.89| 0.90|   0.9|
+
+### Lower Correlation
 
 
 ``` r
@@ -4200,6 +4224,114 @@ Table: Fraction of correlation coefficiets inside 90% confidence interval.
 |:---------|-----:|-----:|----:|
 |simulated | 0.925| 0.895| 0.88|
 |estimated | 0.775| 0.895| 0.88|
+
+### Medium Correlation
+
+
+``` r
+load(file.path('./Git/MixedModels_Biases/', 'results',
+                                        'res_corrre_CB14_eas.Rdata'))
+
+rho_tau <- 0.95
+rho_ss <- 0.54
+rho_s2s <- 0.77
+rho_total <- (rho_tau * tau_sim1 * tau_sim2 +
+                rho_s2s * phi_s2s_sim1 * phi_s2s_sim2 +
+                rho_ss * phi_ss_sim1 * phi_ss_sim2) /
+  (sigma_tot1 * sigma_tot2)
+
+rho_total_sample <- (mat_cor_sample[,2] * tau_sim1 * tau_sim2 + 
+                       mat_cor_sample[,1] * phi_s2s_sim1 * phi_s2s_sim2 + 
+                       mat_cor_sample[,3] * phi_ss_sim1 * phi_ss_sim2) /
+  (sigma_tot1 * sigma_tot2)
+
+patchwork::wrap_plots(
+  data.frame(a = mat_cor[,1],b = mat_cor_stan[,1], z = mat_cor_sample[,1]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_s2s, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta S_1, \\delta S_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = c(0.4,0.8),
+          legend.key.width = unit(2,'cm'))
+  ,
+  
+  data.frame(a = mat_cor[,2],b = mat_cor_stan[,2], z = mat_cor_sample[,2]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_tau, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta B_1, \\delta B_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(2,'cm')) 
+  ,
+  
+  data.frame(a = mat_cor[,3],b = mat_cor_stan[,3], z = mat_cor_sample[,3]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(data.frame(x = mat_cor_sample[,3]),
+                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_ss, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta WS_1, \\delta WS_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(2,'cm')) 
+  ,
+  data.frame(a = mat_cor[,5],b = mat_cor_stan[,4],c = mat_cor[,4], z = rho_total_sample) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_total, linewidth = lw) +
+    labs(x = TeX('$\\rho_{total}$')) +
+    scale_color_manual(values = c('blue','red','cyan','gray'),
+                       labels = c('2-step lmer', '1-step stan', TeX('$\\delta R$'), 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = c(0.2,0.8),
+          legend.key.width = unit(2,'cm'))
+)
+```
+
+<img src="pictures/res-sim6-corrre-eas-1.png" width="100%" />
+
+
+``` r
+knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), 
+                               func_ci(mat_cor[,1], n_stat, rho_s2s),
+                               sum(mat_cor_stan[,5])/nrow(mat_cor_stan)),
+                        dB = c(func_ci(mat_cor_sample[,2], n_eq, rho_tau),
+                               func_ci(mat_cor[,2], n_eq, rho_tau),
+                               sum(mat_cor_stan[,6])/nrow(mat_cor_stan)),
+                        dWS = c(func_ci(mat_cor_sample[,3], n_rec, rho_ss), 
+                                func_ci(mat_cor[,3], n_rec, rho_ss),
+                                sum(mat_cor_stan[,7])/nrow(mat_cor_stan)),
+                        total = c(NA, 
+                                NA,
+                                sum(mat_cor_stan[,8])/nrow(mat_cor_stan)),
+                        row.names = c('simulated','estimated','stan')),
+             row.names = TRUE,
+             caption = "Fraction of correlation coefficiets inside 90% confidence interval."
+)
+```
+
+
+
+Table: Fraction of correlation coefficiets inside 90% confidence interval.
+
+|          |   dS|   dB|  dWS| total|
+|:---------|----:|----:|----:|-----:|
+|simulated | 0.89| 0.90| 0.92|    NA|
+|estimated | 0.00| 0.01| 0.79|    NA|
+|stan      | 0.90| 0.85| 0.91|   0.9|
+
 
 ## Correlations with Stress Drop
 

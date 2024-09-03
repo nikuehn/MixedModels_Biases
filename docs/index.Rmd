@@ -27,7 +27,7 @@ root.dir = '/Users/nico/GROUNDMOTION/PROJECTS/RESID_VAR/')
 
 This page provides code for the simulations shown in ``Use of Simulation to Identify Potential Biases in Mixed-Effects Ground-Motion Models and Variance Components'', which highlights some biases that can occur when using point estimates of random effects/residuals in mixed effects ground-motion models.
 For details, see the paper.
-This repository is archived under < https://doi.org/10.5281/zenodo.10822835>.
+This repository is archived under <https://doi.org/10.5281/zenodo.10822834>.
 
 We use simulations from different models and/or using different data sets to illustrate potential biases.
 In particular, standard deviations are underestimated when they are calculated from point estimates of random effects/residuals.
@@ -1686,7 +1686,7 @@ knitr::kable(df, digits = 3, row.names = TRUE,
              caption = "Estimated correlation coefficients.")
 ```
 
-We see that in this case, the correlation are not well estimated, which is due to the fact that the ucerainty in the random effects is taken into account.
+We see that in this case, the correlation are not well estimated, which is due to the fact that the uncertainty in the random effects is not taken into account.
 
 Running the Bayesian one-step model on the same simulations leads to better results.
 
@@ -1750,6 +1750,16 @@ patchwork::wrap_plots(
     vline_at(rho_t, linewidth = 1.5, color = 'red') +
     labs(x = 'rho_total')
 )
+```
+
+``` {r sim2-corr-stan2-rhototal2}
+rho_total_stan2 <- (mean(rv$phi_ss[1]) * mean(rv$phi_ss[2]) * rv$rho_rec +
+                     mean(rv$phi_s2s[1]) * mean(rv$phi_s2s[2]) * rv$rho_stat +
+                     mean(rv$tau[1]) * mean(rv$tau[2]) * rv$rho_eq) /
+  (sqrt(mean(rv$phi_ss[1])^2 + mean(rv$phi_s2s[1])^2 + mean(rv$tau[1])^2) *
+     sqrt(mean(rv$phi_ss[2])^2 + mean(rv$phi_s2s[2])^2 + mean(rv$tau[2])^2))
+
+c(rho_total_stan, rho_total_stan2)
 ```
 
 ## Correlation with e.g. Stress Drop
@@ -2535,6 +2545,7 @@ patchwork::wrap_plots(p1, p2)
 ```
 
 ## Correlations of Random Effects
+
 ``` {r res-sim6-corrre}
 tau_sim1 <- 0.4
 phi_s2s_sim1 <- 0.43
@@ -2548,9 +2559,17 @@ sigma_tot1 <- sqrt(tau_sim1^2 + phi_s2s_sim1^2 + phi_ss_sim1^2)
 sigma_tot2 <- sqrt(tau_sim2^2 + phi_s2s_sim2^2 + phi_ss_sim2^2)
 ```
 
+### High Correlation
+
 ``` {r res-sim6-corrre-high, out.width = '100%'}
-load(file.path('./Git/MixedModels_Biases/', 'results',
-                                        'res_corrre_CB14_high.Rdata'))
+load(file.path('/Users/nico/GROUNDMOTION/PROJECTS/RESID_VAR/',
+  './Git/MixedModels_Biases/', 'results',
+               'res_corrre_CB14_high.Rdata'))
+load(file.path('/Users/nico/GROUNDMOTION/PROJECTS/RESID_VAR/',
+               './Git/MixedModels_Biases/', 'results',
+               'res_corrre_stan_CB14_high.Rdata'))
+mat_cor <- mat_cor[1:nrow(mat_cor_stan),]
+mat_cor_sample <- mat_cor_sample[1:nrow(mat_cor_stan),]
 
 rho_tau <- 0.95
 rho_ss <- 0.9
@@ -2566,40 +2585,33 @@ rho_total_sample <- (mat_cor_sample[,2] * tau_sim1 * tau_sim2 +
   (sigma_tot1 * sigma_tot2)
 
 patchwork::wrap_plots(
-  data.frame(mat_cor[,c(1,6)]) %>%
+  data.frame(a = mat_cor[,1],b = mat_cor_stan[,1], z = mat_cor_sample[,1]) %>%
     pivot_longer(everything()) %>%
     ggplot() +
-    geom_density(data.frame(x = mat_cor_sample[,1]),
-                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
     geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
     geom_vline(xintercept = rho_s2s, linewidth = lw) +
     labs(x = TeX('$\\rho(\\delta S_1, \\delta S_2)$')) +
-    scale_color_manual(values = c('red','blue'),
-                       labels = c(TeX('$\\rho_{sample}$'),
-                                  TeX('$cov_{sample}/(\\hat{\\sigma}_{1} \\; \\hat{\\sigma}_{2})$'))) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
     guides(color = guide_legend(title = NULL)) +
     theme(legend.position = c(0.4,0.8),
-          legend.key.width = unit(2,'cm')) +
-    #lims(x = c(0.25,0.6)),
-    lims(x = c(0.45,0.95)),
+          legend.key.width = unit(2,'cm'))
+  ,
   
-  data.frame(mat_cor[,c(2,7)]) %>%
+  data.frame(a = mat_cor[,2],b = mat_cor_stan[,2], z = mat_cor_sample[,2]) %>%
     pivot_longer(everything()) %>%
     ggplot() +
-    geom_density(data.frame(x = mat_cor_sample[,2]),
-                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
     geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
     geom_vline(xintercept = rho_tau, linewidth = lw) +
     labs(x = TeX('$\\rho(\\delta B_1, \\delta B_2)$')) +
-    scale_color_manual(values = c('red','blue'),
-                       labels = c(TeX('$\\rho_{sample}$'),'re2')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
     guides(color = guide_legend(title = NULL)) +
     theme(legend.position = 'none',
-          legend.key.width = unit(2,'cm')) +
-    #lims(x = c(0.3,0.6)),
-    lims(x = c(0.8,1.0)),
+          legend.key.width = unit(2,'cm')) 
+  ,
   
-  data.frame(mat_cor[,c(3,8)]) %>%
+  data.frame(a = mat_cor[,3],b = mat_cor_stan[,3], z = mat_cor_sample[,3]) %>%
     pivot_longer(everything()) %>%
     ggplot() +
     geom_density(data.frame(x = mat_cor_sample[,3]),
@@ -2607,29 +2619,23 @@ patchwork::wrap_plots(
     geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
     geom_vline(xintercept = rho_ss, linewidth = lw) +
     labs(x = TeX('$\\rho(\\delta WS_1, \\delta WS_2)$')) +
-    scale_color_manual(values = c('red','blue'),
-                       labels = c('re','re2')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
     guides(color = guide_legend(title = NULL)) +
     theme(legend.position = 'none',
-          legend.key.width = unit(2,'cm')) +
-    #lims(x = c(0.4,0.55)),
-    lims(x = c(0.8,0.95)),
-  
-  data.frame(mat_cor[,c(4,5,9)]) %>%
+          legend.key.width = unit(2,'cm')) 
+  ,
+  data.frame(a = mat_cor[,5],b = mat_cor_stan[,4],c = mat_cor[,4], z = rho_total_sample) %>%
     pivot_longer(everything()) %>%
     ggplot() +
-    geom_density(data.frame(x = rho_total_sample),
-                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
     geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
     geom_vline(xintercept = rho_total, linewidth = lw) +
     labs(x = TeX('$\\rho_{total}$')) +
-    scale_color_manual(values = c('red','blue','cyan'),
-                       labels = c("(1)","(2)",'(3)')) +
+    scale_color_manual(values = c('blue','red','cyan','gray'),
+                       labels = c('2-step lmer', '1-step stan', TeX('$\\delta R$'), 'sim')) +
     guides(color = guide_legend(title = NULL)) +
     theme(legend.position = c(0.2,0.8),
-          legend.key.width = unit(2,'cm')) +
-    #lims(x = c(0.45,0.55))
-    lims(x = c(0.875,0.925))
+          legend.key.width = unit(2,'cm'))
 )
 ```
 
@@ -2649,14 +2655,25 @@ func_ci <- function(cor, n, rho) {
 n_eq <- 274
 n_stat <- 1519
 n_rec <- 12482
-knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), func_ci(mat_cor[,1], n_stat, rho_s2s)),
-                        dB = c(func_ci(mat_cor_sample[,2], n_eq, rho_tau), func_ci(mat_cor[,2], n_eq, rho_tau)),
-                        dWS = c(func_ci(mat_cor_sample[,3], n_rec, rho_ss), func_ci(mat_cor[,3], n_rec, rho_ss)),
-                        row.names = c('simulated','estimated')),
+knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), 
+                               func_ci(mat_cor[,1], n_stat, rho_s2s),
+                               sum(mat_cor_stan[,5])/nrow(mat_cor_stan)),
+                        dB = c(func_ci(mat_cor_sample[,2], n_eq, rho_tau),
+                               func_ci(mat_cor[,2], n_eq, rho_tau),
+                               sum(mat_cor_stan[,6])/nrow(mat_cor_stan)),
+                        dWS = c(func_ci(mat_cor_sample[,3], n_rec, rho_ss), 
+                                func_ci(mat_cor[,3], n_rec, rho_ss),
+                                sum(mat_cor_stan[,7])/nrow(mat_cor_stan)),
+                        total = c(NA, 
+                                NA,
+                                sum(mat_cor_stan[,8])/nrow(mat_cor_stan)),
+                        row.names = c('simulated','estimated','stan')),
              row.names = TRUE,
              caption = "Fraction of correlation coefficiets inside 90% confidence interval."
-             )
+)
 ```
+
+### Lower Correlation
 
 ``` {r res-sim6-corrre-low, out.width = '100%'}
 load(file.path('./Git/MixedModels_Biases/', 'results',
@@ -2746,6 +2763,100 @@ knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), fun
              caption = "Fraction of correlation coefficiets inside 90% confidence interval."
              )
 ```
+
+### Medium Correlation
+
+``` {r res-sim6-corrre-eas, out.width = '100%'}
+load(file.path('./Git/MixedModels_Biases/', 'results',
+                                        'res_corrre_CB14_eas.Rdata'))
+
+rho_tau <- 0.95
+rho_ss <- 0.54
+rho_s2s <- 0.77
+rho_total <- (rho_tau * tau_sim1 * tau_sim2 +
+                rho_s2s * phi_s2s_sim1 * phi_s2s_sim2 +
+                rho_ss * phi_ss_sim1 * phi_ss_sim2) /
+  (sigma_tot1 * sigma_tot2)
+
+rho_total_sample <- (mat_cor_sample[,2] * tau_sim1 * tau_sim2 + 
+                       mat_cor_sample[,1] * phi_s2s_sim1 * phi_s2s_sim2 + 
+                       mat_cor_sample[,3] * phi_ss_sim1 * phi_ss_sim2) /
+  (sigma_tot1 * sigma_tot2)
+
+patchwork::wrap_plots(
+  data.frame(a = mat_cor[,1],b = mat_cor_stan[,1], z = mat_cor_sample[,1]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_s2s, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta S_1, \\delta S_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = c(0.4,0.8),
+          legend.key.width = unit(2,'cm'))
+  ,
+  
+  data.frame(a = mat_cor[,2],b = mat_cor_stan[,2], z = mat_cor_sample[,2]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_tau, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta B_1, \\delta B_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(2,'cm')) 
+  ,
+  
+  data.frame(a = mat_cor[,3],b = mat_cor_stan[,3], z = mat_cor_sample[,3]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(data.frame(x = mat_cor_sample[,3]),
+                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_ss, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta WS_1, \\delta WS_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(2,'cm')) 
+  ,
+  data.frame(a = mat_cor[,5],b = mat_cor_stan[,4],c = mat_cor[,4], z = rho_total_sample) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_total, linewidth = lw) +
+    labs(x = TeX('$\\rho_{total}$')) +
+    scale_color_manual(values = c('blue','red','cyan','gray'),
+                       labels = c('2-step lmer', '1-step stan', TeX('$\\delta R$'), 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = c(0.2,0.8),
+          legend.key.width = unit(2,'cm'))
+)
+```
+
+``` {r res-sim6-corre-eas-ci}
+knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), 
+                               func_ci(mat_cor[,1], n_stat, rho_s2s),
+                               sum(mat_cor_stan[,5])/nrow(mat_cor_stan)),
+                        dB = c(func_ci(mat_cor_sample[,2], n_eq, rho_tau),
+                               func_ci(mat_cor[,2], n_eq, rho_tau),
+                               sum(mat_cor_stan[,6])/nrow(mat_cor_stan)),
+                        dWS = c(func_ci(mat_cor_sample[,3], n_rec, rho_ss), 
+                                func_ci(mat_cor[,3], n_rec, rho_ss),
+                                sum(mat_cor_stan[,7])/nrow(mat_cor_stan)),
+                        total = c(NA, 
+                                NA,
+                                sum(mat_cor_stan[,8])/nrow(mat_cor_stan)),
+                        row.names = c('simulated','estimated','stan')),
+             row.names = TRUE,
+             caption = "Fraction of correlation coefficiets inside 90% confidence interval."
+)
+```
+
 
 ## Correlations with Stress Drop
 
