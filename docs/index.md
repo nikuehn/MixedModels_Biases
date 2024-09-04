@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "03 September, 2024, first published 14 September 2023."
+date: "04 September, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -2365,7 +2365,7 @@ Table: Fraction how many times the estimated standard deviation is inside the 90
 
 ## Correlations between Random Effects
 
-Here, we briefly show that estimating correlations between random effects/residuals can be well estimated from point estimates.
+Here, we investigate the effect of negelcting uncertainty in the valus of the random effects and residuals on the estimation of correlations between these terms for different intensity measures.
 We simulate correlated terms from a bivariate normal distribution, perform a linear mixed-effects regression on each target variable separately, and then calculate the correlation.
 
 The correlation coefficient is calculated as
@@ -2374,8 +2374,8 @@ $$
 $$
 In general, in GMM modeling we are interested in the correlations of the different terms in the model (event terms, site terms, wthin-event/within-site residuals), which means we can only calculate the sample covariance of the estimates of these terms.
 For the standard deviations, however, we can either use the sample standard deviations of the point estimates (which neglects uncertainty), or use the (RE)ML estimate (which takes uncertainty in the random effects/residuals into account).
-We compare calculating $\rho$ using the standard deviations of the point estimates in the denominator (whch iswhatis done by usig function `cor`), as well as the ML estimate from `lmer`.
-The correlations are well estimated by using point estimates, but are underestimated when using the (RE)ML value in the denominator.
+We compare calculating $\rho$ using the standard deviations of the point estimates in the denominator (which is what is done by usig function `cor`), as well as the ML estimate from `lmer`.
+The correlations underestimated when using the (RE)ML value in the denominator.
 The reason is that the sample covariance of the point estimates underestimates the true covariance.
 
 Next to the individual correlations of the random effects and residual, we are also interested in the total correlations, which are calculated as
@@ -2385,6 +2385,39 @@ Next to the individual correlations of the random effects and residual, we are a
 where $IM1$ and $IM2$ are different ground-motion intensity measures.
 There are again different possible choices for the use of the standard deviations.
 We calculate the total correlation usng the best estimate (REML), the sample standard deviation, and also as the correlation of total residuals.
+
+We also estimate a Baysian bivariate mixed-effects model, which estimates all model parameters (random effects, standard deviations, and correlation coefficients) at the same time.
+In general, we can model each random effect and the single-site residuals as a bivariate normal distribution
+$$
+[u_1, u_2]^T \sim MVN([0, 0], \Sigma)
+$$
+where $u_1$ is the event term, site term, or single-site residual for the first target variable, similar for $u_2$, and $\Sigma$ is the covariance matrix.
+Since we have a bivariate normal distribution, we can work directly with the conditional distribution, and parameterize it as
+$$
+u_1 \sim N(0, \sigma_1) \\
+u_2 \sim N(\frac{\sigma_2}{\sigma_1} \; \rho \; u_1, \sqrt{1 - \rho^2} \; \sigma_2)
+$$
+which is more efficient.
+
+It is also possible to use `inla` to estimate correlations, though it requires a bit of a``hack''.
+The model forulation and code is based on <https://becarioprecario.bitbucket.io/spde-gitbook/ch-manipula.html#the-model-and-parametrization>.
+The model resembles a factor model.
+We can write the model as
+$$
+y_1 = c_{1} + \delta B_1 + \delta S_1 + \delta WS_1 \\
+y_2 = c_{1} + \beta_{e,12} \delta B_1 + \delta B_2^* + \beta_{s,12} \delta S_1 + \delta S_2^* + \beta_{r,12} \delta WS_1 + \delta WS_2^*
+$$
+Such a model can be fit with the `copy` feature in `inla`.
+We also need to fix the precision of the likelihood, to be able to treat $\delta WS$ as a random effect.
+The covariance matrix between the random effects can be calculated as
+$$
+\Sigma = \Lambda \; \mbox{diag}(\vec{\sigma}) \; \Lambda^T \\
+\Lambda = \left(\begin{array}{cc}
+1 & 0 \\
+\beta_{12} & 1
+\end{array}\right)
+$$
+
 
 ### Simulation 1
 
@@ -2421,6 +2454,7 @@ cov_s2s <- matrix(c(phi_s2s_sim1^2, rho_s2s * phi_s2s_sim1 * phi_s2s_sim2,
 cov_ss <- matrix(c(phi_ss_sim1^2, rho_ss * phi_ss_sim1 * phi_ss_sim2,
                    rho_ss * phi_ss_sim1 * phi_ss_sim2, phi_ss_sim2^2), ncol = 2)
 
+set.seed(1701)
 eqt2 <- mvtnorm::rmvnorm(n_eq, sigma = cov_tau)
 statt2 <- mvtnorm::rmvnorm(n_stat, sigma = cov_s2s)
 rect2 <- mvtnorm::rmvnorm(n_rec, sigma = cov_ss)
@@ -2473,9 +2507,9 @@ Table: Estimated correlation coefficients.
 |                       |    dS|    dB|   dWS|    dR|
 |:----------------------|-----:|-----:|-----:|-----:|
 |true                   | 0.850| 0.950| 0.900| 0.898|
-|cor                    | 0.863| 0.952| 0.898| 0.905|
-|cov/sd(point estimate) | 0.863| 0.952| 0.898| 0.904|
-|cov()/hat()            | 0.518| 0.853| 0.815| 0.907|
+|cor                    | 0.853| 0.949| 0.898| 0.900|
+|cov/sd(point estimate) | 0.853| 0.949| 0.898| 0.898|
+|cov()/hat()            | 0.517| 0.844| 0.814| 0.901|
 
 We can also estimate the correlations using a Bayesian model.
 In this case, we use a similar model as before, but pass the two target variables as data.
@@ -2511,8 +2545,8 @@ fit_stan <- mod$sample(
 ```
 ## Running MCMC with 4 chains, at most 2 in parallel...
 ## 
-## Chain 1 Iteration:   1 / 500 [  0%]  (Warmup) 
 ## Chain 2 Iteration:   1 / 500 [  0%]  (Warmup) 
+## Chain 1 Iteration:   1 / 500 [  0%]  (Warmup) 
 ## Chain 1 Iteration: 100 / 500 [ 20%]  (Warmup) 
 ## Chain 2 Iteration: 100 / 500 [ 20%]  (Warmup) 
 ## Chain 1 Iteration: 200 / 500 [ 40%]  (Warmup) 
@@ -2524,29 +2558,29 @@ fit_stan <- mod$sample(
 ## Chain 1 Iteration: 400 / 500 [ 80%]  (Sampling) 
 ## Chain 2 Iteration: 400 / 500 [ 80%]  (Sampling) 
 ## Chain 1 Iteration: 500 / 500 [100%]  (Sampling) 
-## Chain 1 finished in 588.0 seconds.
+## Chain 1 finished in 1202.0 seconds.
 ## Chain 3 Iteration:   1 / 500 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 500 / 500 [100%]  (Sampling) 
-## Chain 2 finished in 616.6 seconds.
+## Chain 2 finished in 1232.1 seconds.
 ## Chain 4 Iteration:   1 / 500 [  0%]  (Warmup) 
-## Chain 3 Iteration: 100 / 500 [ 20%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 500 [ 20%]  (Warmup) 
-## Chain 3 Iteration: 200 / 500 [ 40%]  (Warmup) 
+## Chain 3 Iteration: 100 / 500 [ 20%]  (Warmup) 
 ## Chain 4 Iteration: 200 / 500 [ 40%]  (Warmup) 
-## Chain 3 Iteration: 300 / 500 [ 60%]  (Warmup) 
-## Chain 3 Iteration: 301 / 500 [ 60%]  (Sampling) 
+## Chain 3 Iteration: 200 / 500 [ 40%]  (Warmup) 
 ## Chain 4 Iteration: 300 / 500 [ 60%]  (Warmup) 
 ## Chain 4 Iteration: 301 / 500 [ 60%]  (Sampling) 
-## Chain 3 Iteration: 400 / 500 [ 80%]  (Sampling) 
+## Chain 3 Iteration: 300 / 500 [ 60%]  (Warmup) 
+## Chain 3 Iteration: 301 / 500 [ 60%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 500 [ 80%]  (Sampling) 
-## Chain 3 Iteration: 500 / 500 [100%]  (Sampling) 
-## Chain 3 finished in 694.7 seconds.
+## Chain 3 Iteration: 400 / 500 [ 80%]  (Sampling) 
 ## Chain 4 Iteration: 500 / 500 [100%]  (Sampling) 
-## Chain 4 finished in 680.1 seconds.
+## Chain 4 finished in 1838.6 seconds.
+## Chain 3 Iteration: 500 / 500 [100%]  (Sampling) 
+## Chain 3 finished in 1922.7 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 644.8 seconds.
-## Total execution time: 1297.3 seconds.
+## Mean chain execution time: 1548.9 seconds.
+## Total execution time: 3126.0 seconds.
 ```
 
 ``` r
@@ -2554,7 +2588,7 @@ print(fit_stan$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-1-115853.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-2-115853.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-3-115853.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-4-115853.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041041-1-016e0e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041041-2-016e0e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041041-3-016e0e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041041-4-016e0e.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2574,7 +2608,7 @@ print(fit_stan$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-1-115853.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-2-115853.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-3-115853.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpBTxlOU/gmm_partition_corrre_cond-202406170943-4-115853.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041041-1-016e0e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041041-2-016e0e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041041-3-016e0e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041041-4-016e0e.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -2595,7 +2629,7 @@ print(fit_stan$diagnostic_summary())
 ## [1] 0 0 0 0
 ## 
 ## $ebfmi
-## [1] 0.7973268 0.8146631 1.0102995 1.0385106
+## [1] 0.9911184 0.7838289 0.7686207 0.8442138
 ```
 
 ``` r
@@ -2616,23 +2650,171 @@ summarise_draws(subset(draws, variable = c('tau','phi','rho'), regex = TRUE))
 ## # A tibble: 9 × 10
 ##   variable    mean median      sd     mad    q5   q95  rhat ess_bulk ess_tail
 ##   <chr>      <dbl>  <dbl>   <dbl>   <dbl> <dbl> <dbl> <dbl>    <dbl>    <dbl>
-## 1 tau[1]     0.415  0.414 0.0198  0.0202  0.383 0.448 1.00      781.     682.
-## 2 tau[2]     0.472  0.472 0.0227  0.0232  0.437 0.509 1.01      765.     683.
-## 3 phi_ss[1]  0.500  0.500 0.00340 0.00347 0.495 0.506 1.00     1055.     699.
-## 4 phi_ss[2]  0.551  0.551 0.00376 0.00380 0.545 0.557 1.00     1160.     666.
-## 5 phi_s2s[1] 0.417  0.417 0.0110  0.0109  0.399 0.435 1.01      414.     629.
-## 6 phi_s2s[2] 0.397  0.397 0.0114  0.0113  0.377 0.416 1.02      324.     452.
-## 7 rho_rec    0.900  0.900 0.00189 0.00192 0.897 0.903 0.999    1477.     638.
-## 8 rho_eq     0.955  0.956 0.00611 0.00615 0.945 0.965 1.01      908.     726.
-## 9 rho_stat   0.846  0.846 0.0120  0.0121  0.826 0.865 1.01      455.     531.
+## 1 tau[1]     0.401  0.400 0.0193  0.0200  0.372 0.432 1.01     1310.     756.
+## 2 tau[2]     0.443  0.442 0.0210  0.0210  0.410 0.478 1.01     1234.     768.
+## 3 phi_ss[1]  0.499  0.499 0.00351 0.00338 0.493 0.505 0.999    1389.     687.
+## 4 phi_ss[2]  0.548  0.548 0.00380 0.00359 0.541 0.554 1.00     1095.     660.
+## 5 phi_s2s[1] 0.428  0.428 0.0117  0.0115  0.409 0.447 1.00      702.     730.
+## 6 phi_s2s[2] 0.396  0.396 0.0114  0.0119  0.376 0.415 1.01      537.     672.
+## 7 rho_rec    0.900  0.900 0.00180 0.00180 0.897 0.903 0.999    1405.     772.
+## 8 rho_eq     0.952  0.953 0.00639 0.00608 0.942 0.962 0.998    1061.     757.
+## 9 rho_stat   0.831  0.832 0.0124  0.0120  0.810 0.851 1.00      761.     772.
+```
+
+Now we fit the INLA model.
+
+
+``` r
+prior_prec_tau  <- list(prec = list(prior = 'pc.prec', param = c(0.7, 0.01)))
+prior_prec_phis2s  <- list(prec = list(prior = 'pc.prec', param = c(0.7, 0.01)))
+prior_prec_phiss  <- list(prec = list(prior = 'pc.prec', param = c(0.7, 0.01)))
+prior.fixed <- list(mean.intercept = 0, prec.intercept = 0.5)
+prior_beta <- list(beta = list(prior = 'normal', param = c(0, 1)))
+
+form <- y ~ 0 + intercept_1 + intercept_2 +
+  # Y1
+  f(recid_1, model = "iid", hyper = prior_prec_phiss) +
+  f(eqid_1, model = "iid", hyper = prior_prec_tau) +
+  f(statid_1, model = "iid", hyper = prior_prec_phis2s) +
+  # Y2
+  f(recid_2, model = "iid", hyper = prior_prec_phiss) +
+  f(eqid_2, model = "iid", hyper = prior_prec_tau) +
+  f(statid_2, model = "iid", hyper = prior_prec_phis2s) +
+  f(recid_2_1, copy = "recid_1", fixed = FALSE) +
+  f(eqid_2_1, copy = "eqid_1", fixed = FALSE) +
+  f(statid_2_1, copy = "statid_1", fixed = FALSE)
+
+
+stack1 <- inla.stack(
+  data = list(y = cbind(data_reg$y_sim1, NA)),
+  A = list(1), 
+  effects = list(list(intercept_1 = 1, 
+                      recid_1 = 1:n_rec,
+                      eqid_1 = data_reg$eq,
+                      statid_1 = data_reg$stat
+  )))
+
+stack2 <- inla.stack(
+  data = list(y = cbind(NA, data_reg$y_sim2)),
+  A = list(1), 
+  effects = list(list(intercept_2 = 1,
+                      recid_2 = 1:n_rec,
+                      eqid_2 = data_reg$eq,
+                      statid_2 = data_reg$stat,
+                      recid_2_1 = 1:n_rec,
+                      eqid_2_1 = data_reg$eq,
+                      statid_2_1 = data_reg$stat
+  )))
+
+stack <- inla.stack(stack1, stack2)
+
+fit_inla <- inla(form,
+                 data = inla.stack.data(stack),
+                 family=rep('gaussian', 2),
+                 control.family=list(list(initial=12,fixed=TRUE),
+                                     list(initial=12,fixed=TRUE)),
+                 control.predictor = list(A = inla.stack.A(stack)),
+                 control.inla = list(int.strategy = 'eb')
+)
+summary(fit_inla)
+```
+
+```
+## 
+## Call:
+##    c("inla.core(formula = formula, family = family, contrasts = contrasts, 
+##    ", " data = data, quantiles = quantiles, E = E, offset = offset, ", " 
+##    scale = scale, weights = weights, Ntrials = Ntrials, strata = strata, 
+##    ", " lp.scale = lp.scale, link.covariates = link.covariates, verbose = 
+##    verbose, ", " lincomb = lincomb, selection = selection, control.compute 
+##    = control.compute, ", " control.predictor = control.predictor, 
+##    control.family = control.family, ", " control.inla = control.inla, 
+##    control.fixed = control.fixed, ", " control.mode = control.mode, 
+##    control.expert = control.expert, ", " control.hazard = control.hazard, 
+##    control.lincomb = control.lincomb, ", " control.update = 
+##    control.update, control.lp.scale = control.lp.scale, ", " 
+##    control.pardiso = control.pardiso, only.hyperparam = only.hyperparam, 
+##    ", " inla.call = inla.call, inla.arg = inla.arg, num.threads = 
+##    num.threads, ", " blas.num.threads = blas.num.threads, keep = keep, 
+##    working.directory = working.directory, ", " silent = silent, inla.mode 
+##    = inla.mode, safe = FALSE, debug = debug, ", " .parent.frame = 
+##    .parent.frame)") 
+## Time used:
+##     Pre = 9.57, Running = 593, Post = 2.35, Total = 605 
+## Fixed effects:
+##              mean    sd 0.025quant 0.5quant 0.975quant  mode kld
+## intercept_1 0.025 0.028     -0.030    0.025      0.079 0.025   0
+## intercept_2 0.006 0.030     -0.053    0.006      0.064 0.006   0
+## 
+## Random effects:
+##   Name	  Model
+##     recid_1 IID model
+##    eqid_1 IID model
+##    statid_1 IID model
+##    recid_2 IID model
+##    eqid_2 IID model
+##    statid_2 IID model
+##    recid_2_1 Copy
+##    eqid_2_1 Copy
+##    statid_2_1 Copy
+## 
+## Model hyperparameters:
+##                          mean    sd 0.025quant 0.5quant 0.975quant   mode
+## Precision for recid_1   4.017 0.061      3.887    4.021      4.124  4.039
+## Precision for eqid_1    7.067 0.526      6.000    7.080      8.063  7.178
+## Precision for statid_1  5.750 0.261      5.215    5.759      6.243  5.804
+## Precision for recid_2  17.332 0.199     16.978   17.319     17.759 17.268
+## Precision for eqid_2   40.829 3.589     35.275   40.359     49.262 38.716
+## Precision for statid_2 20.098 1.908     15.968   20.302     23.184 21.284
+## Beta for recid_2_1      0.989 0.005      0.978    0.989      0.998  0.991
+## Beta for eqid_2_1       1.023 0.023      0.982    1.022      1.072  1.016
+## Beta for statid_2_1     0.765 0.020      0.726    0.765      0.804  0.765
+## 
+## Marginal log-Likelihood:  -11741.61 
+##  is computed 
+## Posterior summaries for the linear predictor and the fitted values are computed
+## (Posterior marginals needs also 'control.compute=list(return.marginals.predictor=TRUE)')
+```
+
+We now calculate the correlations from the INLA fit.
+We use point estimates of the hperparameters, which is not ideal, but the results are reasonable.
+
+
+``` r
+par <- 'mean'
+hyperpar <- fit_inla$summary.hyperpar
+hyperpar['Precision for recid_1',par]
+```
+
+```
+## [1] 4.016675
+```
+
+``` r
+fm <- matrix(c(1,0,hyperpar['Beta for recid_2_1',par],1),2,2, byrow = TRUE)
+vars <- c(1/hyperpar['Precision for recid_1',par],
+          1/hyperpar['Precision for recid_2',par])
+rho_rec_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
+
+fm <- matrix(c(1,0,hyperpar['Beta for eqid_2_1',par],1),2,2, byrow = TRUE)
+vars <- c(1/hyperpar['Precision for eqid_1',par],
+          1/hyperpar['Precision for eqid_2',par])
+rho_eq_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
+
+
+fm <- matrix(c(1,0,hyperpar['Beta for statid_2_1',par],1),2,2, byrow = TRUE)
+vars <- c(1/hyperpar['Precision for statid_1',par],
+          1/hyperpar['Precision for statid_2',par])
+rho_stat_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
 ```
 
 Below we look at the posterior distributions of the estimated correlations.
 The vertical black line is the true value, and the solid red line is the value estimated from the randomeffects ore residuals.
 The dashed lines are the 90% confidence limits, estimated using Fisher's z-transformation [@Fisher1915].
+The INLA estimates are shown as blue vertical lines.
 We also show the posterior distribution of the total correlation, which can be calculated from the samples for the individual correlations and standard deviatons (we use the `rvar` data type from the posterior package, which allos to easily perform calculations on samples from the posterior).
 
-In general, the fit and associated uncertainty looks good, for both methods.
+In general, the fit and associated uncertainty looks good, for all methods.
 
 
 ``` r
@@ -2658,15 +2840,18 @@ patchwork::wrap_plots(
   mcmc_dens(draws, pars = 'rho_eq') +
     vline_at(rho_tau, linewidth = 1.5) +
     vline_at(cor(dB1,dB2), linewidth = 1.5, color = 'red') +
-    vline_at(calc_ci(cor(dB1,dB2), n_eq), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+    vline_at(calc_ci(cor(dB1,dB2), n_eq), linewidth = 1.5, color = 'red', linetype = 'dashed') +
+    vline_at(rho_eq_inla, linewidth = 1.5, color = 'blue'),
   mcmc_dens(draws, pars = 'rho_stat') +
     vline_at(rho_s2s, linewidth = 1.5) +
     vline_at(cor(dS1,dS2), linewidth = 1.5, color = 'red') +
-    vline_at(calc_ci(cor(dS1,dS2), n_stat), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+    vline_at(calc_ci(cor(dS1,dS2), n_stat), linewidth = 1.5, color = 'red', linetype = 'dashed') +
+    vline_at(rho_stat_inla, linewidth = 1.5, color = 'blue'),
   mcmc_dens(draws, pars = 'rho_rec') +
     vline_at(rho_ss, linewidth = 1.5) +
     vline_at(cor(dWS1,dWS2), linewidth = 1.5, color = 'red') +
-    vline_at(calc_ci(cor(dWS1,dWS2), n_rec), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+    vline_at(calc_ci(cor(dWS1,dWS2), n_rec), linewidth = 1.5, color = 'red', linetype = 'dashed') +
+    vline_at(rho_rec_inla, linewidth = 1.5, color = 'blue'),
   mcmc_dens(as_draws(rho_total_stan)) +
     vline_at(rho_total, linewidth = 1.5) +
     vline_at(rho_t, linewidth = 1.5, color = 'red') +
@@ -2695,7 +2880,7 @@ c(rho_total_stan, rho_total_stan2)
 
 ```
 ## rvar<200,4>[2] mean ± sd:
-## [1] 0.9 ± 0.0041  0.9 ± 0.0036
+## [1] 0.89 ± 0.0041  0.89 ± 0.0038
 ```
 
 ### Simulation 2
@@ -2733,6 +2918,7 @@ cov_s2s <- matrix(c(phi_s2s_sim1^2, rho_s2s * phi_s2s_sim1 * phi_s2s_sim2,
 cov_ss <- matrix(c(phi_ss_sim1^2, rho_ss * phi_ss_sim1 * phi_ss_sim2,
                    rho_ss * phi_ss_sim1 * phi_ss_sim2, phi_ss_sim2^2), ncol = 2)
 
+set.seed(1701)
 eqt2 <- mvtnorm::rmvnorm(n_eq, sigma = cov_tau)
 statt2 <- mvtnorm::rmvnorm(n_stat, sigma = cov_s2s)
 rect2 <- mvtnorm::rmvnorm(n_rec, sigma = cov_ss)
@@ -2785,9 +2971,9 @@ Table: Estimated correlation coefficients.
 |                       |    dS|    dB|   dWS|    dR|
 |:----------------------|-----:|-----:|-----:|-----:|
 |true                   | 0.770| 0.950| 0.540| 0.719|
-|cor                    | 0.701| 0.906| 0.558| 0.714|
-|cov/sd(point estimate) | 0.701| 0.906| 0.558| 0.694|
-|cov()/hat()            | 0.424| 0.803| 0.506| 0.691|
+|cor                    | 0.680| 0.924| 0.547| 0.722|
+|cov/sd(point estimate) | 0.680| 0.924| 0.547| 0.689|
+|cov()/hat()            | 0.413| 0.821| 0.496| 0.688|
 
 We see that in this case, the correlation are not well estimated, which is due to the fact that the uncertainty in the random effects is not taken into account.
 
@@ -2829,36 +3015,36 @@ fit_stan <- mod$sample(
 ## Chain 2 Iteration: 100 / 500 [ 20%]  (Warmup) 
 ## Chain 1 Iteration: 200 / 500 [ 40%]  (Warmup) 
 ## Chain 2 Iteration: 200 / 500 [ 40%]  (Warmup) 
-## Chain 2 Iteration: 300 / 500 [ 60%]  (Warmup) 
-## Chain 2 Iteration: 301 / 500 [ 60%]  (Sampling) 
 ## Chain 1 Iteration: 300 / 500 [ 60%]  (Warmup) 
 ## Chain 1 Iteration: 301 / 500 [ 60%]  (Sampling) 
-## Chain 2 Iteration: 400 / 500 [ 80%]  (Sampling) 
+## Chain 2 Iteration: 300 / 500 [ 60%]  (Warmup) 
+## Chain 2 Iteration: 301 / 500 [ 60%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 500 [ 80%]  (Sampling) 
-## Chain 2 Iteration: 500 / 500 [100%]  (Sampling) 
-## Chain 2 finished in 751.5 seconds.
-## Chain 3 Iteration:   1 / 500 [  0%]  (Warmup) 
+## Chain 2 Iteration: 400 / 500 [ 80%]  (Sampling) 
 ## Chain 1 Iteration: 500 / 500 [100%]  (Sampling) 
-## Chain 1 finished in 772.9 seconds.
+## Chain 1 finished in 1067.4 seconds.
+## Chain 3 Iteration:   1 / 500 [  0%]  (Warmup) 
+## Chain 2 Iteration: 500 / 500 [100%]  (Sampling) 
+## Chain 2 finished in 1094.6 seconds.
 ## Chain 4 Iteration:   1 / 500 [  0%]  (Warmup) 
-## Chain 4 Iteration: 100 / 500 [ 20%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 500 [ 20%]  (Warmup) 
-## Chain 4 Iteration: 200 / 500 [ 40%]  (Warmup) 
+## Chain 4 Iteration: 100 / 500 [ 20%]  (Warmup) 
 ## Chain 3 Iteration: 200 / 500 [ 40%]  (Warmup) 
-## Chain 4 Iteration: 300 / 500 [ 60%]  (Warmup) 
-## Chain 4 Iteration: 301 / 500 [ 60%]  (Sampling) 
+## Chain 4 Iteration: 200 / 500 [ 40%]  (Warmup) 
 ## Chain 3 Iteration: 300 / 500 [ 60%]  (Warmup) 
 ## Chain 3 Iteration: 301 / 500 [ 60%]  (Sampling) 
-## Chain 4 Iteration: 400 / 500 [ 80%]  (Sampling) 
 ## Chain 3 Iteration: 400 / 500 [ 80%]  (Sampling) 
-## Chain 4 Iteration: 500 / 500 [100%]  (Sampling) 
-## Chain 4 finished in 790.2 seconds.
 ## Chain 3 Iteration: 500 / 500 [100%]  (Sampling) 
-## Chain 3 finished in 838.8 seconds.
+## Chain 3 finished in 485.6 seconds.
+## Chain 4 Iteration: 300 / 500 [ 60%]  (Warmup) 
+## Chain 4 Iteration: 301 / 500 [ 60%]  (Sampling) 
+## Chain 4 Iteration: 400 / 500 [ 80%]  (Sampling) 
+## Chain 4 Iteration: 500 / 500 [100%]  (Sampling) 
+## Chain 4 finished in 496.4 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 788.4 seconds.
-## Total execution time: 1591.0 seconds.
+## Mean chain execution time: 786.0 seconds.
+## Total execution time: 1591.7 seconds.
 ```
 
 ``` r
@@ -2866,7 +3052,7 @@ print(fit_stan$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-1-4a656c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-2-4a656c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-3-4a656c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-4-4a656c.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041144-1-016e0e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041144-2-016e0e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041144-3-016e0e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041144-4-016e0e.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -2879,14 +3065,17 @@ print(fit_stan$cmdstan_diagnose())
 ## 
 ## Effective sample size satisfactory.
 ## 
-## Split R-hat values satisfactory all parameters.
+## The following parameters had split R-hat greater than 1.05:
+##   c0[1], c0[2]
+## Such high values indicate incomplete mixing and biased estimation.
+## You should consider regularizating your model with additional prior information or a more effective parameterization.
 ## 
-## Processing complete, no problems detected.
+## Processing complete.
 ## $status
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-1-4a656c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-2-4a656c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-3-4a656c.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpgjXdYE/gmm_partition_corrre_cond-202408301003-4-4a656c.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041144-1-016e0e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041144-2-016e0e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041144-3-016e0e.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/Rtmp807Xi0/gmm_partition_corrre_cond-202409041144-4-016e0e.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nThe following parameters had split R-hat greater than 1.05:\n  c0[1], c0[2]\nSuch high values indicate incomplete mixing and biased estimation.\nYou should consider regularizating your model with additional prior information or a more effective parameterization.\n\nProcessing complete.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -2907,7 +3096,7 @@ print(fit_stan$diagnostic_summary())
 ## [1] 0 0 0 0
 ## 
 ## $ebfmi
-## [1] 0.8625748 0.4696211 0.7698291 0.7925519
+## [1] 0.9858624 0.7560373 0.7869200 0.8643151
 ```
 
 ``` r
@@ -2921,18 +3110,166 @@ summarise_draws(subset(draws, variable = c('tau','phi','rho'), regex = TRUE))
 ## # A tibble: 9 × 10
 ##   variable    mean median      sd     mad    q5   q95  rhat ess_bulk ess_tail
 ##   <chr>      <dbl>  <dbl>   <dbl>   <dbl> <dbl> <dbl> <dbl>    <dbl>    <dbl>
-## 1 tau[1]     0.391  0.391 0.0181  0.0177  0.361 0.421 1.01     1094.     634.
-## 2 tau[2]     0.435  0.435 0.0204  0.0198  0.403 0.472 1.00     1404.     736.
-## 3 phi_ss[1]  0.495  0.495 0.00320 0.00317 0.490 0.501 1.00      768.     732.
-## 4 phi_ss[2]  0.548  0.548 0.00365 0.00355 0.542 0.554 1.00      872.     518.
-## 5 phi_s2s[1] 0.413  0.413 0.0116  0.0113  0.393 0.432 1.00      596.     669.
-## 6 phi_s2s[2] 0.404  0.404 0.0120  0.0114  0.385 0.424 0.998     637.     597.
-## 7 rho_rec    0.551  0.551 0.00684 0.00699 0.539 0.562 1.00     1469.     521.
-## 8 rho_eq     0.945  0.946 0.00877 0.00795 0.930 0.959 0.999     732.     569.
-## 9 rho_stat   0.768  0.768 0.0189  0.0200  0.736 0.798 1.01      326.     574.
+## 1 tau[1]     0.399  0.399 0.0194  0.0184  0.368 0.431 1.00      763.     665.
+## 2 tau[2]     0.440  0.439 0.0206  0.0201  0.409 0.475 1.00      818.     617.
+## 3 phi_ss[1]  0.499  0.499 0.00339 0.00354 0.493 0.504 0.999    1121.     759.
+## 4 phi_ss[2]  0.547  0.547 0.00378 0.00360 0.541 0.554 1.00      794.     643.
+## 5 phi_s2s[1] 0.428  0.428 0.0117  0.0117  0.409 0.447 1.00      570.     629.
+## 6 phi_s2s[2] 0.396  0.396 0.0119  0.0118  0.377 0.416 1.00      500.     561.
+## 7 rho_rec    0.541  0.540 0.00659 0.00660 0.531 0.552 1.01     1370.     607.
+## 8 rho_eq     0.952  0.953 0.00746 0.00720 0.940 0.964 1.00      667.     748.
+## 9 rho_stat   0.751  0.752 0.0193  0.0196  0.717 0.782 1.01      376.     569.
 ```
 
-Below the posterior distributions are shown, together with the estimates based on separate regressions using `lmer`.
+Now we fit the INLA model.
+
+
+``` r
+prior_prec_tau  <- list(prec = list(prior = 'pc.prec', param = c(0.7, 0.01)))
+prior_prec_phis2s  <- list(prec = list(prior = 'pc.prec', param = c(0.7, 0.01)))
+prior_prec_phiss  <- list(prec = list(prior = 'pc.prec', param = c(0.7, 0.01)))
+prior.fixed <- list(mean.intercept = 0, prec.intercept = 0.5)
+prior_beta <- list(beta = list(prior = 'normal', param = c(0, 1)))
+
+form <- y ~ 0 + intercept_1 + intercept_2 +
+  # Y1
+  f(recid_1, model = "iid", hyper = prior_prec_phiss) +
+  f(eqid_1, model = "iid", hyper = prior_prec_tau) +
+  f(statid_1, model = "iid", hyper = prior_prec_phis2s) +
+  # Y2
+  f(recid_2, model = "iid", hyper = prior_prec_phiss) +
+  f(eqid_2, model = "iid", hyper = prior_prec_tau) +
+  f(statid_2, model = "iid", hyper = prior_prec_phis2s) +
+  f(recid_2_1, copy = "recid_1", fixed = FALSE) +
+  f(eqid_2_1, copy = "eqid_1", fixed = FALSE) +
+  f(statid_2_1, copy = "statid_1", fixed = FALSE)
+
+
+stack1 <- inla.stack(
+  data = list(y = cbind(data_reg$y_sim1, NA)),
+  A = list(1), 
+  effects = list(list(intercept_1 = 1, 
+                      recid_1 = 1:n_rec,
+                      eqid_1 = data_reg$eq,
+                      statid_1 = data_reg$stat
+  )))
+
+stack2 <- inla.stack(
+  data = list(y = cbind(NA, data_reg$y_sim2)),
+  A = list(1), 
+  effects = list(list(intercept_2 = 1,
+                      recid_2 = 1:n_rec,
+                      eqid_2 = data_reg$eq,
+                      statid_2 = data_reg$stat,
+                      recid_2_1 = 1:n_rec,
+                      eqid_2_1 = data_reg$eq,
+                      statid_2_1 = data_reg$stat
+  )))
+
+stack <- inla.stack(stack1, stack2)
+
+fit_inla <- inla(form,
+                 data = inla.stack.data(stack),
+                 family=rep('gaussian', 2),
+                 control.family=list(list(initial=12,fixed=TRUE),
+                                     list(initial=12,fixed=TRUE)),
+                 control.predictor = list(A = inla.stack.A(stack)),
+                 control.inla = list(int.strategy = 'eb')
+)
+summary(fit_inla)
+```
+
+```
+## 
+## Call:
+##    c("inla.core(formula = formula, family = family, contrasts = contrasts, 
+##    ", " data = data, quantiles = quantiles, E = E, offset = offset, ", " 
+##    scale = scale, weights = weights, Ntrials = Ntrials, strata = strata, 
+##    ", " lp.scale = lp.scale, link.covariates = link.covariates, verbose = 
+##    verbose, ", " lincomb = lincomb, selection = selection, control.compute 
+##    = control.compute, ", " control.predictor = control.predictor, 
+##    control.family = control.family, ", " control.inla = control.inla, 
+##    control.fixed = control.fixed, ", " control.mode = control.mode, 
+##    control.expert = control.expert, ", " control.hazard = control.hazard, 
+##    control.lincomb = control.lincomb, ", " control.update = 
+##    control.update, control.lp.scale = control.lp.scale, ", " 
+##    control.pardiso = control.pardiso, only.hyperparam = only.hyperparam, 
+##    ", " inla.call = inla.call, inla.arg = inla.arg, num.threads = 
+##    num.threads, ", " blas.num.threads = blas.num.threads, keep = keep, 
+##    working.directory = working.directory, ", " silent = silent, inla.mode 
+##    = inla.mode, safe = FALSE, debug = debug, ", " .parent.frame = 
+##    .parent.frame)") 
+## Time used:
+##     Pre = 10.6, Running = 351, Post = 3.64, Total = 365 
+## Fixed effects:
+##              mean    sd 0.025quant 0.5quant 0.975quant  mode kld
+## intercept_1 0.027 0.028     -0.028    0.027      0.083 0.027   0
+## intercept_2 0.005 0.031     -0.055    0.005      0.065 0.005   0
+## 
+## Random effects:
+##   Name	  Model
+##     recid_1 IID model
+##    eqid_1 IID model
+##    statid_1 IID model
+##    recid_2 IID model
+##    eqid_2 IID model
+##    statid_2 IID model
+##    recid_2_1 Copy
+##    eqid_2_1 Copy
+##    statid_2_1 Copy
+## 
+## Model hyperparameters:
+##                          mean    sd 0.025quant 0.5quant 0.975quant   mode
+## Precision for recid_1   4.016 0.055      3.909    4.016      4.124  4.016
+## Precision for eqid_1    5.835 1.011      3.740    5.917      7.517  6.273
+## Precision for statid_1  5.471 0.298      4.911    5.461      6.084  5.440
+## Precision for recid_2   4.723 0.064      4.597    4.723      4.848  4.725
+## Precision for eqid_2   48.532 5.391     39.782   47.904     60.910 46.070
+## Precision for statid_2 14.830 1.063     12.727   14.840     16.902 14.945
+## Beta for recid_2_1      0.593 0.009      0.576    0.593      0.610  0.593
+## Beta for eqid_2_1       1.050 0.030      0.995    1.048      1.112  1.043
+## Beta for statid_2_1     0.700 0.027      0.644    0.701      0.751  0.705
+## 
+## Marginal log-Likelihood:  -19380.99 
+##  is computed 
+## Posterior summaries for the linear predictor and the fitted values are computed
+## (Posterior marginals needs also 'control.compute=list(return.marginals.predictor=TRUE)')
+```
+
+We now calculate the correlations from the INLA fit.
+We use point estimates of the hperparameters, which is not ideal, but the results are reasonable.
+
+
+``` r
+par <- 'mean'
+hyperpar <- fit_inla$summary.hyperpar
+hyperpar['Precision for recid_1',par]
+```
+
+```
+## [1] 4.016007
+```
+
+``` r
+fm <- matrix(c(1,0,hyperpar['Beta for recid_2_1',par],1),2,2, byrow = TRUE)
+vars <- c(1/hyperpar['Precision for recid_1',par],
+          1/hyperpar['Precision for recid_2',par])
+rho_rec_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
+
+fm <- matrix(c(1,0,hyperpar['Beta for eqid_2_1',par],1),2,2, byrow = TRUE)
+vars <- c(1/hyperpar['Precision for eqid_1',par],
+          1/hyperpar['Precision for eqid_2',par])
+rho_eq_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
+
+
+fm <- matrix(c(1,0,hyperpar['Beta for statid_2_1',par],1),2,2, byrow = TRUE)
+vars <- c(1/hyperpar['Precision for statid_1',par],
+          1/hyperpar['Precision for statid_2',par])
+rho_stat_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
+```
+
+Below the posterior distributions are shown, together with the estimates based on separate regressions using `lmer` (red vertical lines).
+The INLA estimates are shown as blue vertical lines.
 The Bayesian models captures the true values quite well.
 
 
@@ -2946,15 +3283,18 @@ patchwork::wrap_plots(
   mcmc_dens(draws, pars = 'rho_eq') +
     vline_at(rho_tau, linewidth = 1.5) +
     vline_at(cor(dB1,dB2), linewidth = 1.5, color = 'red') +
-    vline_at(calc_ci(cor(dB1,dB2), n_eq), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+    vline_at(calc_ci(cor(dB1,dB2), n_eq), linewidth = 1.5, color = 'red', linetype = 'dashed') +
+    vline_at(rho_eq_inla, linewidth = 1.5, color = 'blue'),
   mcmc_dens(draws, pars = 'rho_stat') +
     vline_at(rho_s2s, linewidth = 1.5) +
     vline_at(cor(dS1,dS2), linewidth = 1.5, color = 'red') +
-    vline_at(calc_ci(cor(dS1,dS2), n_stat), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+    vline_at(calc_ci(cor(dS1,dS2), n_stat), linewidth = 1.5, color = 'red', linetype = 'dashed') +
+    vline_at(rho_stat_inla, linewidth = 1.5, color = 'blue'),
   mcmc_dens(draws, pars = 'rho_rec') +
     vline_at(rho_ss, linewidth = 1.5) +
     vline_at(cor(dWS1,dWS2), linewidth = 1.5, color = 'red') +
-    vline_at(calc_ci(cor(dWS1,dWS2), n_rec), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+    vline_at(calc_ci(cor(dWS1,dWS2), n_rec), linewidth = 1.5, color = 'red', linetype = 'dashed') +
+    vline_at(rho_rec_inla, linewidth = 1.5, color = 'blue'),
   mcmc_dens(as_draws(rho_total_stan)) +
     vline_at(rho_total, linewidth = 1.5) +
     vline_at(rho_t, linewidth = 1.5, color = 'red') +
@@ -2977,7 +3317,7 @@ c(rho_total_stan, rho_total_stan2)
 
 ```
 ## rvar<200,4>[2] mean ± sd:
-## [1] 0.72 ± 0.009  0.72 ± 0.006
+## [1] 0.71 ± 0.0097  0.71 ± 0.0058
 ```
 
 ## Correlation with e.g. Stress Drop
@@ -3073,10 +3413,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 226.4 seconds.
+## Chain 1 finished in 104.1 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 227.8 seconds.
+## Chain 2 finished in 105.1 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -3087,13 +3427,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 133.0 seconds.
+## Chain 4 finished in 74.1 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 138.7 seconds.
+## Chain 3 finished in 78.1 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 181.5 seconds.
-## Total execution time: 365.9 seconds.
+## Mean chain execution time: 90.4 seconds.
+## Total execution time: 182.7 seconds.
 ```
 
 ``` r
@@ -3101,7 +3441,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-1-80bf53.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-2-80bf53.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-3-80bf53.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-4-80bf53.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-1-810646.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-2-810646.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-3-810646.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-4-810646.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -3121,7 +3461,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-1-80bf53.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-2-80bf53.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-3-80bf53.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpTtfLF2/gmm_partition_wvar_corr-202409031004-4-80bf53.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-1-810646.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-2-810646.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-3-810646.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-4-810646.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -3468,7 +3808,7 @@ fit_spamm <- fitme(y_sim ~ M1 + M2 + MlogR + logR + R + Fss + Frv + logVS + (1|e
 ```
 
 ```
-## (One-time message:) Choosing matrix methods took 2.49 s.
+## (One-time message:) Choosing matrix methods took 3.89 s.
 ##   If you perform many similarly costly fits, setting the method
 ##   by control.HLfit=list(algebra=<"spprec"|"spcorr"|"decorr">) may be useful,
 ##   see help("algebra"). "spcorr" has been selected here.
@@ -3477,6 +3817,15 @@ fit_spamm <- fitme(y_sim ~ M1 + M2 + MlogR + logR + R + Fss + Frv + logVS + (1|e
 ``` r
 range_spamm <- sqrt(8)/fit_spamm$corrPars$`3`$rho
 varcorr_spamm <- VarCorr(fit_spamm)
+how(fit_spamm)[['fit_time']]
+```
+
+```
+## [1] "Model fitted by spaMM::fitme, version 4.4.16, in 1365.49s using sparse-correlation method for y-augmented matrix (Cholesky)."
+```
+
+```
+## [1] 1365.49
 ```
 
 Below, we plot the posterior distributions of the spatial range as well as the associated standard deviation.
@@ -4115,8 +4464,14 @@ Table: Fraction of correlation coefficiets inside 90% confidence interval.
 
 
 ``` r
-load(file.path('./Git/MixedModels_Biases/', 'results',
-                                        'res_corrre_CB14_low.Rdata'))
+load(file.path('/Users/nico/GROUNDMOTION/PROJECTS/RESID_VAR/',
+  './Git/MixedModels_Biases/', 'results',
+               'res_corrre_CB14_low.Rdata'))
+load(file.path('/Users/nico/GROUNDMOTION/PROJECTS/RESID_VAR/',
+               './Git/MixedModels_Biases/', 'results',
+               'res_corrre_stan_CB14_low.Rdata'))
+mat_cor <- mat_cor[1:nrow(mat_cor_stan),]
+mat_cor_sample <- mat_cor_sample[1:nrow(mat_cor_stan),]
 
 rho_tau <- 0.45
 rho_ss <- 0.5
@@ -4130,6 +4485,98 @@ rho_total_sample <- (mat_cor_sample[,2] * tau_sim1 * tau_sim2 +
                        mat_cor_sample[,1] * phi_s2s_sim1 * phi_s2s_sim2 + 
                        mat_cor_sample[,3] * phi_ss_sim1 * phi_ss_sim2) /
   (sigma_tot1 * sigma_tot2)
+
+patchwork::wrap_plots(
+  data.frame(a = mat_cor[,1],b = mat_cor_stan[,1], z = mat_cor_sample[,1]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_s2s, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta S_1, \\delta S_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = c(0.4,0.8),
+          legend.key.width = unit(2,'cm'))
+  ,
+  
+  data.frame(a = mat_cor[,2],b = mat_cor_stan[,2], z = mat_cor_sample[,2]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_tau, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta B_1, \\delta B_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(2,'cm')) 
+  ,
+  
+  data.frame(a = mat_cor[,3],b = mat_cor_stan[,3], z = mat_cor_sample[,3]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(data.frame(x = mat_cor_sample[,3]),
+                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_ss, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta WS_1, \\delta WS_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(2,'cm')) 
+  ,
+  data.frame(a = mat_cor[,5],b = mat_cor_stan[,4],c = mat_cor[,4], z = rho_total_sample) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_total, linewidth = lw) +
+    labs(x = TeX('$\\rho_{total}$')) +
+    scale_color_manual(values = c('blue','red','cyan','gray'),
+                       labels = c('2-step lmer', '1-step stan', TeX('$\\delta R$'), 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = c(0.2,0.8),
+          legend.key.width = unit(2,'cm'))
+)
+```
+
+<img src="pictures/res-sim6-corrre-low-1.png" width="100%" />
+
+
+``` r
+knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), 
+                               func_ci(mat_cor[,1], n_stat, rho_s2s),
+                               sum(mat_cor_stan[,5])/nrow(mat_cor_stan)),
+                        dB = c(func_ci(mat_cor_sample[,2], n_eq, rho_tau),
+                               func_ci(mat_cor[,2], n_eq, rho_tau),
+                               sum(mat_cor_stan[,6])/nrow(mat_cor_stan)),
+                        dWS = c(func_ci(mat_cor_sample[,3], n_rec, rho_ss), 
+                                func_ci(mat_cor[,3], n_rec, rho_ss),
+                                sum(mat_cor_stan[,7])/nrow(mat_cor_stan)),
+                        total = c(NA, 
+                                NA,
+                                sum(mat_cor_stan[,8])/nrow(mat_cor_stan)),
+                        row.names = c('simulated','estimated','stan')),
+             row.names = TRUE,
+             caption = "Fraction of correlation coefficiets inside 90% confidence interval."
+)
+```
+
+
+
+Table: Fraction of correlation coefficiets inside 90% confidence interval.
+
+|          |   dS|   dB|  dWS| total|
+|:---------|----:|----:|----:|-----:|
+|simulated | 0.95| 0.91| 0.87|    NA|
+|estimated | 0.78| 0.91| 0.90|    NA|
+|stan      | 0.85| 0.90| 0.88|  0.88|
+
+
+``` r
+load(file.path('./Git/MixedModels_Biases/', 'results',
+                                        'res_corrre_CB14_low.Rdata'))
 
 patchwork::wrap_plots(
   data.frame(mat_cor[,c(1,6)]) %>%
@@ -4203,27 +4650,7 @@ patchwork::wrap_plots(
 ## (`stat_density()`).
 ```
 
-<img src="pictures/res-sim6-corrre-low-1.png" width="100%" />
-
-
-``` r
-knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), func_ci(mat_cor[,1], n_stat, rho_s2s)),
-                        dB = c(func_ci(mat_cor_sample[,2], n_eq, rho_tau), func_ci(mat_cor[,2], n_eq, rho_tau)),
-                        dWS = c(func_ci(mat_cor_sample[,3], n_rec, rho_ss), func_ci(mat_cor[,3], n_rec, rho_ss)),
-                        row.names = c('simulated','estimated')),
-             row.names = TRUE,
-             caption = "Fraction of correlation coefficiets inside 90% confidence interval."
-             )
-```
-
-
-
-Table: Fraction of correlation coefficiets inside 90% confidence interval.
-
-|          |    dS|    dB|  dWS|
-|:---------|-----:|-----:|----:|
-|simulated | 0.925| 0.895| 0.88|
-|estimated | 0.775| 0.895| 0.88|
+<img src="pictures/res-sim6-corrre-low-old-1.png" width="100%" />
 
 ### Medium Correlation
 

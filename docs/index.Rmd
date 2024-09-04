@@ -1402,7 +1402,7 @@ data.frame(rbind(colSums(mat_ci_sd)/n_sam,
 
 ## Correlations between Random Effects
 
-Here, we briefly show that estimating correlations between random effects/residuals can be well estimated from point estimates.
+Here, we investigate the effect of negelcting uncertainty in the valus of the random effects and residuals on the estimation of correlations between these terms for different intensity measures.
 We simulate correlated terms from a bivariate normal distribution, perform a linear mixed-effects regression on each target variable separately, and then calculate the correlation.
 
 The correlation coefficient is calculated as
@@ -1411,8 +1411,8 @@ $$
 $$
 In general, in GMM modeling we are interested in the correlations of the different terms in the model (event terms, site terms, wthin-event/within-site residuals), which means we can only calculate the sample covariance of the estimates of these terms.
 For the standard deviations, however, we can either use the sample standard deviations of the point estimates (which neglects uncertainty), or use the (RE)ML estimate (which takes uncertainty in the random effects/residuals into account).
-We compare calculating $\rho$ using the standard deviations of the point estimates in the denominator (whch iswhatis done by usig function `cor`), as well as the ML estimate from `lmer`.
-The correlations are well estimated by using point estimates, but are underestimated when using the (RE)ML value in the denominator.
+We compare calculating $\rho$ using the standard deviations of the point estimates in the denominator (which is what is done by usig function `cor`), as well as the ML estimate from `lmer`.
+The correlations underestimated when using the (RE)ML value in the denominator.
 The reason is that the sample covariance of the point estimates underestimates the true covariance.
 
 Next to the individual correlations of the random effects and residual, we are also interested in the total correlations, which are calculated as
@@ -1422,6 +1422,39 @@ Next to the individual correlations of the random effects and residual, we are a
 where $IM1$ and $IM2$ are different ground-motion intensity measures.
 There are again different possible choices for the use of the standard deviations.
 We calculate the total correlation usng the best estimate (REML), the sample standard deviation, and also as the correlation of total residuals.
+
+We also estimate a Baysian bivariate mixed-effects model, which estimates all model parameters (random effects, standard deviations, and correlation coefficients) at the same time.
+In general, we can model each random effect and the single-site residuals as a bivariate normal distribution
+$$
+[u_1, u_2]^T \sim MVN([0, 0], \Sigma)
+$$
+where $u_1$ is the event term, site term, or single-site residual for the first target variable, similar for $u_2$, and $\Sigma$ is the covariance matrix.
+Since we have a bivariate normal distribution, we can work directly with the conditional distribution, and parameterize it as
+$$
+u_1 \sim N(0, \sigma_1) \\
+u_2 \sim N(\frac{\sigma_2}{\sigma_1} \; \rho \; u_1, \sqrt{1 - \rho^2} \; \sigma_2)
+$$
+which is more efficient.
+
+It is also possible to use `inla` to estimate correlations, though it requires a bit of a``hack''.
+The model forulation and code is based on <https://becarioprecario.bitbucket.io/spde-gitbook/ch-manipula.html#the-model-and-parametrization>.
+The model resembles a factor model.
+We can write the model as
+$$
+y_1 = c_{1} + \delta B_1 + \delta S_1 + \delta WS_1 \\
+y_2 = c_{1} + \beta_{e,12} \delta B_1 + \delta B_2^* + \beta_{s,12} \delta S_1 + \delta S_2^* + \beta_{r,12} \delta WS_1 + \delta WS_2^*
+$$
+Such a model can be fit with the `copy` feature in `inla`.
+We also need to fix the precision of the likelihood, to be able to treat $\delta WS$ as a random effect.
+The covariance matrix between the random effects can be calculated as
+$$
+\Sigma = \Lambda \; \mbox{diag}(\vec{\sigma}) \; \Lambda^T \\
+\Lambda = \left(\begin{array}{cc}
+1 & 0 \\
+\beta_{12} & 1
+\end{array}\right)
+$$
+
 
 ### Simulation 1
 
@@ -1457,6 +1490,7 @@ cov_s2s <- matrix(c(phi_s2s_sim1^2, rho_s2s * phi_s2s_sim1 * phi_s2s_sim2,
 cov_ss <- matrix(c(phi_ss_sim1^2, rho_ss * phi_ss_sim1 * phi_ss_sim2,
                    rho_ss * phi_ss_sim1 * phi_ss_sim2, phi_ss_sim2^2), ncol = 2)
 
+set.seed(1701)
 eqt2 <- mvtnorm::rmvnorm(n_eq, sigma = cov_tau)
 statt2 <- mvtnorm::rmvnorm(n_stat, sigma = cov_s2s)
 rect2 <- mvtnorm::rmvnorm(n_rec, sigma = cov_ss)
@@ -1545,12 +1579,95 @@ summarise_draws(subset(draws, variable = c('tau','phi','rho'), regex = TRUE))
 
 ```
 
+Now we fit the INLA model.
+
+``` {r sim2-corr-inla}
+prior_prec_tau  <- list(prec = list(prior = 'pc.prec', param = c(0.7, 0.01)))
+prior_prec_phis2s  <- list(prec = list(prior = 'pc.prec', param = c(0.7, 0.01)))
+prior_prec_phiss  <- list(prec = list(prior = 'pc.prec', param = c(0.7, 0.01)))
+prior.fixed <- list(mean.intercept = 0, prec.intercept = 0.5)
+prior_beta <- list(beta = list(prior = 'normal', param = c(0, 1)))
+
+form <- y ~ 0 + intercept_1 + intercept_2 +
+  # Y1
+  f(recid_1, model = "iid", hyper = prior_prec_phiss) +
+  f(eqid_1, model = "iid", hyper = prior_prec_tau) +
+  f(statid_1, model = "iid", hyper = prior_prec_phis2s) +
+  # Y2
+  f(recid_2, model = "iid", hyper = prior_prec_phiss) +
+  f(eqid_2, model = "iid", hyper = prior_prec_tau) +
+  f(statid_2, model = "iid", hyper = prior_prec_phis2s) +
+  f(recid_2_1, copy = "recid_1", fixed = FALSE) +
+  f(eqid_2_1, copy = "eqid_1", fixed = FALSE) +
+  f(statid_2_1, copy = "statid_1", fixed = FALSE)
+
+
+stack1 <- inla.stack(
+  data = list(y = cbind(data_reg$y_sim1, NA)),
+  A = list(1), 
+  effects = list(list(intercept_1 = 1, 
+                      recid_1 = 1:n_rec,
+                      eqid_1 = data_reg$eq,
+                      statid_1 = data_reg$stat
+  )))
+
+stack2 <- inla.stack(
+  data = list(y = cbind(NA, data_reg$y_sim2)),
+  A = list(1), 
+  effects = list(list(intercept_2 = 1,
+                      recid_2 = 1:n_rec,
+                      eqid_2 = data_reg$eq,
+                      statid_2 = data_reg$stat,
+                      recid_2_1 = 1:n_rec,
+                      eqid_2_1 = data_reg$eq,
+                      statid_2_1 = data_reg$stat
+  )))
+
+stack <- inla.stack(stack1, stack2)
+
+fit_inla <- inla(form,
+                 data = inla.stack.data(stack),
+                 family=rep('gaussian', 2),
+                 control.family=list(list(initial=12,fixed=TRUE),
+                                     list(initial=12,fixed=TRUE)),
+                 control.predictor = list(A = inla.stack.A(stack)),
+                 control.inla = list(int.strategy = 'eb')
+)
+summary(fit_inla)
+```
+
+We now calculate the correlations from the INLA fit.
+We use point estimates of the hperparameters, which is not ideal, but the results are reasonable.
+
+``` {r sim2-corr-inla-cmat}
+par <- 'mean'
+hyperpar <- fit_inla$summary.hyperpar
+hyperpar['Precision for recid_1',par]
+
+fm <- matrix(c(1,0,hyperpar['Beta for recid_2_1',par],1),2,2, byrow = TRUE)
+vars <- c(1/hyperpar['Precision for recid_1',par],
+          1/hyperpar['Precision for recid_2',par])
+rho_rec_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
+
+fm <- matrix(c(1,0,hyperpar['Beta for eqid_2_1',par],1),2,2, byrow = TRUE)
+vars <- c(1/hyperpar['Precision for eqid_1',par],
+          1/hyperpar['Precision for eqid_2',par])
+rho_eq_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
+
+
+fm <- matrix(c(1,0,hyperpar['Beta for statid_2_1',par],1),2,2, byrow = TRUE)
+vars <- c(1/hyperpar['Precision for statid_1',par],
+          1/hyperpar['Precision for statid_2',par])
+rho_stat_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
+```
+
 Below we look at the posterior distributions of the estimated correlations.
 The vertical black line is the true value, and the solid red line is the value estimated from the randomeffects ore residuals.
 The dashed lines are the 90% confidence limits, estimated using Fisher's z-transformation [@Fisher1915].
+The INLA estimates are shown as blue vertical lines.
 We also show the posterior distribution of the total correlation, which can be calculated from the samples for the individual correlations and standard deviatons (we use the `rvar` data type from the posterior package, which allos to easily perform calculations on samples from the posterior).
 
-In general, the fit and associated uncertainty looks good, for both methods.
+In general, the fit and associated uncertainty looks good, for all methods.
 
 ``` {r sim2-corr-stan-plots, out.width = '100%', fig.width=16}
 inverse_ztransform <- function(rho) {
@@ -1575,15 +1692,18 @@ patchwork::wrap_plots(
   mcmc_dens(draws, pars = 'rho_eq') +
     vline_at(rho_tau, linewidth = 1.5) +
     vline_at(cor(dB1,dB2), linewidth = 1.5, color = 'red') +
-    vline_at(calc_ci(cor(dB1,dB2), n_eq), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+    vline_at(calc_ci(cor(dB1,dB2), n_eq), linewidth = 1.5, color = 'red', linetype = 'dashed') +
+    vline_at(rho_eq_inla, linewidth = 1.5, color = 'blue'),
   mcmc_dens(draws, pars = 'rho_stat') +
     vline_at(rho_s2s, linewidth = 1.5) +
     vline_at(cor(dS1,dS2), linewidth = 1.5, color = 'red') +
-    vline_at(calc_ci(cor(dS1,dS2), n_stat), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+    vline_at(calc_ci(cor(dS1,dS2), n_stat), linewidth = 1.5, color = 'red', linetype = 'dashed') +
+    vline_at(rho_stat_inla, linewidth = 1.5, color = 'blue'),
   mcmc_dens(draws, pars = 'rho_rec') +
     vline_at(rho_ss, linewidth = 1.5) +
     vline_at(cor(dWS1,dWS2), linewidth = 1.5, color = 'red') +
-    vline_at(calc_ci(cor(dWS1,dWS2), n_rec), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+    vline_at(calc_ci(cor(dWS1,dWS2), n_rec), linewidth = 1.5, color = 'red', linetype = 'dashed') +
+    vline_at(rho_rec_inla, linewidth = 1.5, color = 'blue'),
   mcmc_dens(as_draws(rho_total_stan)) +
     vline_at(rho_total, linewidth = 1.5) +
     vline_at(rho_t, linewidth = 1.5, color = 'red') +
@@ -1641,6 +1761,7 @@ cov_s2s <- matrix(c(phi_s2s_sim1^2, rho_s2s * phi_s2s_sim1 * phi_s2s_sim2,
 cov_ss <- matrix(c(phi_ss_sim1^2, rho_ss * phi_ss_sim1 * phi_ss_sim2,
                    rho_ss * phi_ss_sim1 * phi_ss_sim2, phi_ss_sim2^2), ncol = 2)
 
+set.seed(1701)
 eqt2 <- mvtnorm::rmvnorm(n_eq, sigma = cov_tau)
 statt2 <- mvtnorm::rmvnorm(n_stat, sigma = cov_s2s)
 rect2 <- mvtnorm::rmvnorm(n_rec, sigma = cov_ss)
@@ -1722,7 +1843,90 @@ rv <- as_draws_rvars(draws)
 summarise_draws(subset(draws, variable = c('tau','phi','rho'), regex = TRUE))
 ```
 
-Below the posterior distributions are shown, together with the estimates based on separate regressions using `lmer`.
+Now we fit the INLA model.
+
+``` {r sim2-corr-inla2}
+prior_prec_tau  <- list(prec = list(prior = 'pc.prec', param = c(0.7, 0.01)))
+prior_prec_phis2s  <- list(prec = list(prior = 'pc.prec', param = c(0.7, 0.01)))
+prior_prec_phiss  <- list(prec = list(prior = 'pc.prec', param = c(0.7, 0.01)))
+prior.fixed <- list(mean.intercept = 0, prec.intercept = 0.5)
+prior_beta <- list(beta = list(prior = 'normal', param = c(0, 1)))
+
+form <- y ~ 0 + intercept_1 + intercept_2 +
+  # Y1
+  f(recid_1, model = "iid", hyper = prior_prec_phiss) +
+  f(eqid_1, model = "iid", hyper = prior_prec_tau) +
+  f(statid_1, model = "iid", hyper = prior_prec_phis2s) +
+  # Y2
+  f(recid_2, model = "iid", hyper = prior_prec_phiss) +
+  f(eqid_2, model = "iid", hyper = prior_prec_tau) +
+  f(statid_2, model = "iid", hyper = prior_prec_phis2s) +
+  f(recid_2_1, copy = "recid_1", fixed = FALSE) +
+  f(eqid_2_1, copy = "eqid_1", fixed = FALSE) +
+  f(statid_2_1, copy = "statid_1", fixed = FALSE)
+
+
+stack1 <- inla.stack(
+  data = list(y = cbind(data_reg$y_sim1, NA)),
+  A = list(1), 
+  effects = list(list(intercept_1 = 1, 
+                      recid_1 = 1:n_rec,
+                      eqid_1 = data_reg$eq,
+                      statid_1 = data_reg$stat
+  )))
+
+stack2 <- inla.stack(
+  data = list(y = cbind(NA, data_reg$y_sim2)),
+  A = list(1), 
+  effects = list(list(intercept_2 = 1,
+                      recid_2 = 1:n_rec,
+                      eqid_2 = data_reg$eq,
+                      statid_2 = data_reg$stat,
+                      recid_2_1 = 1:n_rec,
+                      eqid_2_1 = data_reg$eq,
+                      statid_2_1 = data_reg$stat
+  )))
+
+stack <- inla.stack(stack1, stack2)
+
+fit_inla <- inla(form,
+                 data = inla.stack.data(stack),
+                 family=rep('gaussian', 2),
+                 control.family=list(list(initial=12,fixed=TRUE),
+                                     list(initial=12,fixed=TRUE)),
+                 control.predictor = list(A = inla.stack.A(stack)),
+                 control.inla = list(int.strategy = 'eb')
+)
+summary(fit_inla)
+```
+
+We now calculate the correlations from the INLA fit.
+We use point estimates of the hperparameters, which is not ideal, but the results are reasonable.
+
+``` {r sim2-corr-inla2-cmat}
+par <- 'mean'
+hyperpar <- fit_inla$summary.hyperpar
+hyperpar['Precision for recid_1',par]
+
+fm <- matrix(c(1,0,hyperpar['Beta for recid_2_1',par],1),2,2, byrow = TRUE)
+vars <- c(1/hyperpar['Precision for recid_1',par],
+          1/hyperpar['Precision for recid_2',par])
+rho_rec_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
+
+fm <- matrix(c(1,0,hyperpar['Beta for eqid_2_1',par],1),2,2, byrow = TRUE)
+vars <- c(1/hyperpar['Precision for eqid_1',par],
+          1/hyperpar['Precision for eqid_2',par])
+rho_eq_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
+
+
+fm <- matrix(c(1,0,hyperpar['Beta for statid_2_1',par],1),2,2, byrow = TRUE)
+vars <- c(1/hyperpar['Precision for statid_1',par],
+          1/hyperpar['Precision for statid_2',par])
+rho_stat_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
+```
+
+Below the posterior distributions are shown, together with the estimates based on separate regressions using `lmer` (red vertical lines).
+The INLA estimates are shown as blue vertical lines.
 The Bayesian models captures the true values quite well.
 
 ``` {r sim2-corr-stan-plots2, out.width = '100%', fig.width=16}
@@ -1736,15 +1940,18 @@ patchwork::wrap_plots(
   mcmc_dens(draws, pars = 'rho_eq') +
     vline_at(rho_tau, linewidth = 1.5) +
     vline_at(cor(dB1,dB2), linewidth = 1.5, color = 'red') +
-    vline_at(calc_ci(cor(dB1,dB2), n_eq), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+    vline_at(calc_ci(cor(dB1,dB2), n_eq), linewidth = 1.5, color = 'red', linetype = 'dashed') +
+    vline_at(rho_eq_inla, linewidth = 1.5, color = 'blue'),
   mcmc_dens(draws, pars = 'rho_stat') +
     vline_at(rho_s2s, linewidth = 1.5) +
     vline_at(cor(dS1,dS2), linewidth = 1.5, color = 'red') +
-    vline_at(calc_ci(cor(dS1,dS2), n_stat), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+    vline_at(calc_ci(cor(dS1,dS2), n_stat), linewidth = 1.5, color = 'red', linetype = 'dashed') +
+    vline_at(rho_stat_inla, linewidth = 1.5, color = 'blue'),
   mcmc_dens(draws, pars = 'rho_rec') +
     vline_at(rho_ss, linewidth = 1.5) +
     vline_at(cor(dWS1,dWS2), linewidth = 1.5, color = 'red') +
-    vline_at(calc_ci(cor(dWS1,dWS2), n_rec), linewidth = 1.5, color = 'red', linetype = 'dashed'),
+    vline_at(calc_ci(cor(dWS1,dWS2), n_rec), linewidth = 1.5, color = 'red', linetype = 'dashed') +
+    vline_at(rho_rec_inla, linewidth = 1.5, color = 'blue'),
   mcmc_dens(as_draws(rho_total_stan)) +
     vline_at(rho_total, linewidth = 1.5) +
     vline_at(rho_t, linewidth = 1.5, color = 'red') +
@@ -2106,13 +2313,14 @@ fit_inla_spatial_total <- inla(form_spatial_total,
 We can also fit the model using function `fitme` from the `spaMM` package [@Rousset2014].
 We fix the value of $\nu$ in the Matern correlation function to $\nu = 1$, the value used in the simulation.
 
-``` {r sim-it-spatial-spamm-fit, cache = TRUE}
+``` {r sim-it-spatial-spamm-fit}
 data_reg$X_stat <- co_stat_utm[stat, 1]
 data_reg$Y_stat <- co_stat_utm[stat, 2]
 fit_spamm <- fitme(y_sim ~ M1 + M2 + MlogR + logR + R + Fss + Frv + logVS + (1|eq) + (1|stat) +
                      Matern(1 | X_stat + Y_stat), data_reg, fixed=list(nu=1))
 range_spamm <- sqrt(8)/fit_spamm$corrPars$`3`$rho
 varcorr_spamm <- VarCorr(fit_spamm)
+how(fit_spamm)[['fit_time']]
 ```
 
 Below, we plot the posterior distributions of the spatial range as well as the associated standard deviation.
@@ -2676,8 +2884,14 @@ knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s),
 ### Lower Correlation
 
 ``` {r res-sim6-corrre-low, out.width = '100%'}
-load(file.path('./Git/MixedModels_Biases/', 'results',
-                                        'res_corrre_CB14_low.Rdata'))
+load(file.path('/Users/nico/GROUNDMOTION/PROJECTS/RESID_VAR/',
+  './Git/MixedModels_Biases/', 'results',
+               'res_corrre_CB14_low.Rdata'))
+load(file.path('/Users/nico/GROUNDMOTION/PROJECTS/RESID_VAR/',
+               './Git/MixedModels_Biases/', 'results',
+               'res_corrre_stan_CB14_low.Rdata'))
+mat_cor <- mat_cor[1:nrow(mat_cor_stan),]
+mat_cor_sample <- mat_cor_sample[1:nrow(mat_cor_stan),]
 
 rho_tau <- 0.45
 rho_ss <- 0.5
@@ -2691,6 +2905,84 @@ rho_total_sample <- (mat_cor_sample[,2] * tau_sim1 * tau_sim2 +
                        mat_cor_sample[,1] * phi_s2s_sim1 * phi_s2s_sim2 + 
                        mat_cor_sample[,3] * phi_ss_sim1 * phi_ss_sim2) /
   (sigma_tot1 * sigma_tot2)
+
+patchwork::wrap_plots(
+  data.frame(a = mat_cor[,1],b = mat_cor_stan[,1], z = mat_cor_sample[,1]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_s2s, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta S_1, \\delta S_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = c(0.4,0.8),
+          legend.key.width = unit(2,'cm'))
+  ,
+  
+  data.frame(a = mat_cor[,2],b = mat_cor_stan[,2], z = mat_cor_sample[,2]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_tau, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta B_1, \\delta B_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(2,'cm')) 
+  ,
+  
+  data.frame(a = mat_cor[,3],b = mat_cor_stan[,3], z = mat_cor_sample[,3]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(data.frame(x = mat_cor_sample[,3]),
+                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_ss, linewidth = lw) +
+    labs(x = TeX('$\\rho(\\delta WS_1, \\delta WS_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(2,'cm')) 
+  ,
+  data.frame(a = mat_cor[,5],b = mat_cor_stan[,4],c = mat_cor[,4], z = rho_total_sample) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_total, linewidth = lw) +
+    labs(x = TeX('$\\rho_{total}$')) +
+    scale_color_manual(values = c('blue','red','cyan','gray'),
+                       labels = c('2-step lmer', '1-step stan', TeX('$\\delta R$'), 'sim')) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = c(0.2,0.8),
+          legend.key.width = unit(2,'cm'))
+)
+```
+
+``` {r res-sim6-corre-low-ci}
+knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), 
+                               func_ci(mat_cor[,1], n_stat, rho_s2s),
+                               sum(mat_cor_stan[,5])/nrow(mat_cor_stan)),
+                        dB = c(func_ci(mat_cor_sample[,2], n_eq, rho_tau),
+                               func_ci(mat_cor[,2], n_eq, rho_tau),
+                               sum(mat_cor_stan[,6])/nrow(mat_cor_stan)),
+                        dWS = c(func_ci(mat_cor_sample[,3], n_rec, rho_ss), 
+                                func_ci(mat_cor[,3], n_rec, rho_ss),
+                                sum(mat_cor_stan[,7])/nrow(mat_cor_stan)),
+                        total = c(NA, 
+                                NA,
+                                sum(mat_cor_stan[,8])/nrow(mat_cor_stan)),
+                        row.names = c('simulated','estimated','stan')),
+             row.names = TRUE,
+             caption = "Fraction of correlation coefficiets inside 90% confidence interval."
+)
+```
+
+``` {r res-sim6-corrre-low-old, out.width = '100%'}
+load(file.path('./Git/MixedModels_Biases/', 'results',
+                                        'res_corrre_CB14_low.Rdata'))
 
 patchwork::wrap_plots(
   data.frame(mat_cor[,c(1,6)]) %>%
@@ -2752,16 +3044,6 @@ patchwork::wrap_plots(
           legend.key.width = unit(2,'cm')) +
     lims(x = c(0.45,0.55))
 )
-```
-
-``` {r res-sim6-corre-low-ci}
-knitr::kable(data.frame(dS = c(func_ci(mat_cor_sample[,1], n_stat, rho_s2s), func_ci(mat_cor[,1], n_stat, rho_s2s)),
-                        dB = c(func_ci(mat_cor_sample[,2], n_eq, rho_tau), func_ci(mat_cor[,2], n_eq, rho_tau)),
-                        dWS = c(func_ci(mat_cor_sample[,3], n_rec, rho_ss), func_ci(mat_cor[,3], n_rec, rho_ss)),
-                        row.names = c('simulated','estimated')),
-             row.names = TRUE,
-             caption = "Fraction of correlation coefficiets inside 90% confidence interval."
-             )
 ```
 
 ### Medium Correlation
