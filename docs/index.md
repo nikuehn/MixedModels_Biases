@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "04 September, 2024, first published 14 September 2023."
+date: "30 September, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -74,6 +74,7 @@ library(bayesplot)
 library(tidyverse)
 library(INLA)
 library(spaMM)
+library(TMB)
 library(matrixStats)
 library(latex2exp)
 ```
@@ -479,6 +480,56 @@ data.frame(inla = sd_deltaWS_inla,
 ```
 
 <img src="pictures/example-plot-se2-1.png" width="50%" />
+
+We now plot the event terms and single-site residuals against magnitude, and the site terms against $V_{S30}$.
+We also plot the uncertainties.
+For simplicity, we plot only the results from the INLA fit.
+Plotting the uncertainties allows one to better gauge whether there is possible heteroscedasticity.
+
+
+``` r
+mageq <- unique(data_it[,c('EQID','mag')])[,2]
+vsstat <- unique(data_it[,c('STATID','vs30')])[,2]
+
+p1 <- data.frame(M = mageq, 
+           dB = fit_inla$summary.random$eq$mean,
+           low = fit_inla$summary.random$eq[,'0.05quant'],
+           high = fit_inla$summary.random$eq[,'0.95quant']
+           ) %>%
+  ggplot(aes(x = M)) +
+  geom_point(aes(y = dB), size = sp) +
+  geom_linerange(aes(ymin = low, ymax = high), linewidth = 1.5) +
+  labs(y = TeX("$\\widehat{\\delta B}$")) +
+  lims(y = c(-0.5,0.5))
+
+
+p2 <- data.frame(M = data_it$mag, 
+           dWS = data_reg$Y - fit_inla$summary.fitted.values$mean,
+           low = data_reg$Y - fit_inla$summary.fitted.values[,'0.05quant'],
+           high = data_reg$Y - fit_inla$summary.fitted.values[,'0.95quant']
+) %>%
+  ggplot(aes(x = M)) +
+  geom_point(aes(y = dWS), size = sp) +
+  geom_linerange(aes(ymin = low, ymax = high), linewidth = 1.5) +
+  labs(y = TeX("$\\widehat{\\delta WS}$")) +
+  lims(y = c(-1.05,1.05))
+
+
+p3 <- data.frame(VS = vsstat, 
+           dS = fit_inla$summary.random$stat$mean,
+           low = fit_inla$summary.random$stat[,'0.05quant'],
+           high = fit_inla$summary.random$stat[,'0.95quant']
+) %>%
+  ggplot(aes(x = VS)) +
+  geom_point(aes(y = dS), size = sp) +
+  geom_linerange(aes(ymin = low, ymax = high), linewidth = 1.5) +
+  labs(y = TeX("$\\widehat{\\delta S}$"), x = TeX("$V_{S30}$")) +
+  scale_x_log10(breaks = breaks, minor_breaks = minor_breaks)
+
+patchwork::wrap_plots(p1, p2, p3, ncol = 2)
+```
+
+<img src="pictures/example-plot-re-unc-1.png" width="100%" />
 
 We now calculate the conditional standard deviations of the random effects from the `lmer` fit according to Equation (3) of the paper, which makes use of the design matrix of the random effects $\mathbf{Z}$, and the relative covariance factor $\mathbf{\Lambda}$.
 We compare the results against the values calculated by package `arm`, and find that the differences are negligible.
@@ -1385,8 +1436,300 @@ summarise_draws(subset(draws_part, variable = c('ic','phi','tau'), regex = TRUE)
 In general, the parameters are well estimated.
 There are not that many events for $M \geq 6$, so the value of $\tau_2$ is quite uncertain.
 
-In the following, we run a Stan model which estimates coefficients and magitude-dependent standard deviations at the same time.
-To improve sampling, we use the QR-decomposition of the desgn matrix.
+It is also possible to estimate a mixed-effects model with heteroscedastic standard deviations using the `TMB` pacakge [@Kristensen2016].
+For `TMB`, the model is defined in a C++ file, which returns the negative log-likelihood, which can then be minimized.
+
+
+``` r
+compile(file.path('./Git/MixedModels_Biases/', 'tmb', "linear_mixed_model_tauM_phiM.cpp"))
+```
+
+```
+## [1] 0
+```
+
+``` r
+dyn.load(dynlib(file.path('./Git/MixedModels_Biases/', 'tmb', "linear_mixed_model_tauM_phiM")))
+
+
+data_list <- list(Y = as.numeric(dR_lmer), eq= eq - 1, stat = stat - 1,
+                  M1_eq=m1_eq, M2_eq =m2_eq, M1_rec = m1_rec, M2_rec = m2_rec)
+# starting values
+parameters <- list(
+  u_eq = rep(0, n_eq),    # Random effects for eq
+  u_stat = rep(0, n_stat),# Random effects for stat
+  beta = 0,
+  log_phi_ss_sm = 0,
+  log_phi_ss_lm = 0,
+  log_tau_sm = 0,
+  log_tau_lm = 0,
+  log_phi_s2s = 0
+)
+# Create TMB object
+model_tmb <- MakeADFun(data = data_list, parameters = parameters, random = c("u_eq", "u_stat"), 
+                       DLL = "linear_mixed_model_tauM_phiM")
+
+fit_tmb <- nlminb(model_tmb$par, model_tmb$fn, model_tmb$gr)
+```
+
+```
+## Optimizing tape... Done
+## iter: 1  value: 14783.14 mgc: 106.15 ustep: 1 
+## iter: 2  mgc: 2.378653e-13 
+## iter: 1  mgc: 2.378653e-13 
+## Matching hessian patterns... Done
+## outer mgc:  6561.346 
+## iter: 1  value: 12230.6 mgc: 12.41124 ustep: 1 
+## iter: 2  mgc: 1.499634e-13 
+## iter: 1  mgc: 1.499634e-13 
+## outer mgc:  8736.56 
+## iter: 1  value: 10472.58 mgc: 14.96179 ustep: 1 
+## iter: 2  mgc: 8.198997e-14 
+## iter: 1  mgc: 8.198997e-14 
+## outer mgc:  3293.359 
+## iter: 1  value: 9907.946 mgc: 14.21981 ustep: 1 
+## iter: 2  mgc: 1.955658e-13 
+## iter: 1  value: 9642.286 mgc: 1.876478 ustep: 1 
+## iter: 2  mgc: 5.223599e-14 
+## iter: 1  mgc: 5.223599e-14 
+## outer mgc:  434.3919 
+## iter: 1  value: 9893.688 mgc: 9.86271 ustep: 1 
+## iter: 2  mgc: 5.073719e-14 
+## iter: 1  value: 9643.874 mgc: 2.730865 ustep: 1 
+## iter: 2  mgc: 4.468648e-14 
+## iter: 1  mgc: 4.468648e-14 
+## outer mgc:  529.2239 
+## iter: 1  value: 9736.02 mgc: 1.331685 ustep: 1 
+## iter: 2  mgc: 9.348078e-14 
+## iter: 1  value: 9673.702 mgc: 0.6512014 ustep: 1 
+## iter: 2  mgc: 5.140333e-14 
+## iter: 1  mgc: 5.140333e-14 
+## outer mgc:  253.9615 
+## iter: 1  value: 9651.977 mgc: 0.7739028 ustep: 1 
+## iter: 2  mgc: 4.524159e-14 
+## iter: 1  mgc: 4.524159e-14 
+## outer mgc:  204.5524 
+## iter: 1  value: 9659.209 mgc: 0.7432703 ustep: 1 
+## iter: 2  mgc: 3.180789e-14 
+## iter: 1  mgc: 3.180789e-14 
+## outer mgc:  252.2551 
+## iter: 1  value: 9621.529 mgc: 1.070725 ustep: 1 
+## iter: 2  mgc: 6.100676e-14 
+## iter: 1  mgc: 6.100676e-14 
+## outer mgc:  236.1585 
+## iter: 1  value: 9540.922 mgc: 21.55578 ustep: 1 
+## iter: 2  mgc: 1.030842e-13 
+## iter: 1  value: 9596.277 mgc: 9.255271 ustep: 1 
+## iter: 2  mgc: 5.107026e-14 
+## iter: 1  mgc: 5.107026e-14 
+## outer mgc:  207.4246 
+## iter: 1  value: 9602.815 mgc: 3.197943 ustep: 1 
+## iter: 2  mgc: 5.995204e-14 
+## iter: 1  mgc: 5.995204e-14 
+## outer mgc:  58.41522 
+## iter: 1  value: 9642.242 mgc: 17.55808 ustep: 1 
+## iter: 2  mgc: 8.992806e-14 
+## iter: 1  value: 9636.101 mgc: 1.082586 ustep: 1 
+## iter: 2  mgc: 4.447831e-14 
+## iter: 1  value: 9611.661 mgc: 0.3623192 ustep: 1 
+## iter: 2  mgc: 5.728751e-14 
+## iter: 1  mgc: 5.728751e-14 
+## outer mgc:  120.9715 
+## iter: 1  value: 9601.414 mgc: 1.035277 ustep: 1 
+## iter: 2  mgc: 6.17284e-14 
+## iter: 1  mgc: 6.17284e-14 
+## outer mgc:  91.53934 
+## iter: 1  value: 9605.799 mgc: 0.2695172 ustep: 1 
+## iter: 2  mgc: 4.840572e-14 
+## iter: 1  mgc: 4.840572e-14 
+## outer mgc:  55.1528 
+## iter: 1  value: 9597.668 mgc: 1.648694 ustep: 1 
+## iter: 2  mgc: 5.417888e-14 
+## iter: 1  mgc: 5.417888e-14 
+## outer mgc:  72.35617 
+## iter: 1  value: 9599.194 mgc: 5.349524 ustep: 1 
+## iter: 2  mgc: 4.796163e-14 
+## iter: 1  value: 9594.219 mgc: 7.62484 ustep: 1 
+## iter: 2  mgc: 3.883005e-14 
+## iter: 1  value: 9583.918 mgc: 18.77664 ustep: 1 
+## iter: 2  mgc: 1.039169e-13 
+## iter: 1  mgc: 1.039169e-13 
+## outer mgc:  92.31269 
+## iter: 1  value: 9579.18 mgc: 234.0258 ustep: 1 
+## iter: 2  mgc: 5.666578e-13 
+## iter: 1  value: 9577.706 mgc: 107.0235 ustep: 1 
+## iter: 2  mgc: 2.664535e-13 
+## iter: 1  mgc: 2.664535e-13 
+## outer mgc:  177.0346 
+## iter: 1  value: 9602.528 mgc: 231.4558 ustep: 1 
+## iter: 2  mgc: 3.43725e-13 
+## iter: 1  value: 9603.474 mgc: 73.98757 ustep: 1 
+## iter: 2  mgc: 4.116707e-13 
+## iter: 1  value: 9595.849 mgc: 12.10013 ustep: 1 
+## iter: 2  mgc: 5.817569e-14 
+## iter: 1  value: 9584.982 mgc: 5.650028 ustep: 1 
+## iter: 2  mgc: 6.57252e-14 
+## iter: 1  mgc: 6.57252e-14 
+## outer mgc:  42.40665 
+## iter: 1  value: 9582.981 mgc: 17.99578 ustep: 1 
+## iter: 2  mgc: 4.041212e-14 
+## iter: 1  mgc: 4.041212e-14 
+## outer mgc:  45.3058 
+## iter: 1  value: 9589.781 mgc: 31.54933 ustep: 1 
+## iter: 2  mgc: 1.514344e-13 
+## iter: 1  mgc: 1.514344e-13 
+## outer mgc:  120.7819 
+## iter: 1  value: 9581.049 mgc: 12.65524 ustep: 1 
+## iter: 2  mgc: 1.301181e-13 
+## iter: 1  mgc: 1.301181e-13 
+## outer mgc:  48.72756 
+## iter: 1  value: 9582.348 mgc: 13.42084 ustep: 1 
+## iter: 2  mgc: 1.150191e-13 
+## iter: 1  mgc: 1.150191e-13 
+## outer mgc:  21.64518 
+## iter: 1  value: 9578.531 mgc: 6.315018 ustep: 1 
+## iter: 2  mgc: 6.039613e-14 
+## iter: 1  mgc: 6.039613e-14 
+## outer mgc:  75.79381 
+## iter: 1  value: 9582.819 mgc: 48.13218 ustep: 1 
+## iter: 2  mgc: 2.566836e-13 
+## iter: 1  value: 9582.452 mgc: 21.67043 ustep: 1 
+## iter: 2  mgc: 1.159073e-13 
+## iter: 1  mgc: 1.159073e-13 
+## outer mgc:  28.33925 
+## iter: 1  value: 9586.98 mgc: 33.1132 ustep: 1 
+## iter: 2  mgc: 2.54019e-13 
+## iter: 1  mgc: 2.54019e-13 
+## outer mgc:  36.88998 
+## iter: 1  value: 9568.058 mgc: 27.17034 ustep: 1 
+## iter: 2  mgc: 7.061018e-14 
+## iter: 1  value: 9583.591 mgc: 4.17874 ustep: 1 
+## iter: 2  mgc: 6.794565e-14 
+## iter: 1  mgc: 6.794565e-14 
+## outer mgc:  30.78659 
+## iter: 1  value: 9584.914 mgc: 2.422783 ustep: 1 
+## iter: 2  mgc: 5.373479e-14 
+## iter: 1  mgc: 5.373479e-14 
+## outer mgc:  16.98924 
+## iter: 1  value: 9582.469 mgc: 2.829611 ustep: 1 
+## iter: 2  mgc: 3.724798e-14 
+## iter: 1  mgc: 3.724798e-14 
+## outer mgc:  24.84406 
+## iter: 1  value: 9584.18 mgc: 0.525165 ustep: 1 
+## iter: 2  mgc: 5.040413e-14 
+## iter: 1  mgc: 5.040413e-14 
+## outer mgc:  14.69242 
+## iter: 1  value: 9583.779 mgc: 1.503884 ustep: 1 
+## iter: 2  mgc: 3.885781e-14 
+## iter: 1  mgc: 3.885781e-14 
+## outer mgc:  25.27278 
+## iter: 1  value: 9574.067 mgc: 0.7944249 ustep: 1 
+## iter: 2  mgc: 4.13003e-14 
+## iter: 1  value: 9581.825 mgc: 2.241921 ustep: 1 
+## iter: 2  mgc: 6.039613e-14 
+## iter: 1  mgc: 6.039613e-14 
+## outer mgc:  12.73485 
+## iter: 1  value: 9578.727 mgc: 37.50746 ustep: 1 
+## iter: 2  mgc: 1.536549e-13 
+## iter: 1  value: 9580.236 mgc: 12.2237 ustep: 1 
+## iter: 2  mgc: 7.01661e-14 
+## iter: 1  mgc: 7.01661e-14 
+## outer mgc:  29.61238 
+## iter: 1  value: 9582.454 mgc: 3.255382 ustep: 1 
+## iter: 2  mgc: 9.592327e-14 
+## iter: 1  mgc: 9.592327e-14 
+## outer mgc:  19.69836 
+## iter: 1  value: 9581.029 mgc: 0.4221324 ustep: 1 
+## iter: 2  mgc: 4.440892e-14 
+## iter: 1  mgc: 4.440892e-14 
+## outer mgc:  3.763518 
+## iter: 1  value: 9581.75 mgc: 3.18937 ustep: 1 
+## iter: 2  mgc: 5.018208e-14 
+## iter: 1  mgc: 5.018208e-14 
+## outer mgc:  16.59768 
+## iter: 1  value: 9580.73 mgc: 2.724038 ustep: 1 
+## iter: 2  mgc: 5.595524e-14 
+## iter: 1  mgc: 5.595524e-14 
+## outer mgc:  7.610389 
+## iter: 1  value: 9592.65 mgc: 33.8377 ustep: 1 
+## iter: 2  mgc: 2.122746e-13 
+## iter: 1  value: 9582.098 mgc: 5.862791 ustep: 1 
+## iter: 2  mgc: 3.819167e-14 
+## iter: 1  mgc: 3.819167e-14 
+## outer mgc:  13.47799 
+## iter: 1  value: 9582.269 mgc: 1.59039 ustep: 1 
+## iter: 2  mgc: 4.174439e-14 
+## iter: 1  mgc: 4.174439e-14 
+## outer mgc:  3.797847 
+## iter: 1  value: 9580.76 mgc: 3.18994 ustep: 1 
+## iter: 2  mgc: 6.750156e-14 
+## iter: 1  mgc: 6.750156e-14 
+## outer mgc:  9.295726 
+## iter: 1  value: 9580.06 mgc: 1.671665 ustep: 1 
+## iter: 2  mgc: 3.730349e-14 
+## iter: 1  mgc: 3.730349e-14 
+## outer mgc:  2.384016 
+## iter: 1  value: 9581.433 mgc: 1.3734 ustep: 1 
+## iter: 2  mgc: 3.597123e-14 
+## iter: 1  mgc: 3.597123e-14 
+## outer mgc:  1.280165 
+## iter: 1  value: 9580.986 mgc: 0.5441552 ustep: 1 
+## iter: 2  mgc: 9.237056e-14 
+## iter: 1  mgc: 9.237056e-14 
+## outer mgc:  0.1084327 
+## iter: 1  value: 9580.964 mgc: 0.04137597 ustep: 1 
+## iter: 2  mgc: 4.52971e-14 
+## iter: 1  mgc: 4.52971e-14 
+## outer mgc:  0.05894835 
+## iter: 1  value: 9580.976 mgc: 0.00984686 ustep: 1 
+## iter: 2  mgc: 4.218847e-14 
+## iter: 1  mgc: 4.218847e-14 
+## outer mgc:  0.0002120331 
+## iter: 1  value: 9580.976 mgc: 3.762415e-05 ustep: 1 
+## iter: 2  mgc: 8.393286e-14 
+## iter: 1  mgc: 8.393286e-14 
+## outer mgc:  3.0906e-05 
+## iter: 1  value: 9580.976 mgc: 9.434089e-06 ustep: 1 
+## iter: 2  mgc: 4.440892e-14 
+## iter: 1  mgc: 8.393286e-14
+```
+
+``` r
+print(fit_tmb$par)
+```
+
+```
+##          beta log_phi_ss_sm log_phi_ss_lm    log_tau_sm    log_tau_lm 
+##  -0.004073821  -0.596711237  -0.924337368  -0.943847546  -1.185990745 
+##   log_phi_s2s 
+##  -0.840343462
+```
+
+``` r
+print(model_tmb$report())
+```
+
+```
+## $phi_s2s
+## [1] 0.4315623
+## 
+## $tau_sm
+## [1] 0.3891278
+## 
+## $tau_lm
+## [1] 0.3054434
+## 
+## $phi_ss_sm
+## [1] 0.5506195
+## 
+## $phi_ss_lm
+## [1] 0.3967943
+```
+
+The standard deviations are reasonably well estimated, with values similar to the ones from the stan fit.
+
+In the following, we run a Stan model which estimates coefficients and magnitude-dependent standard deviations at the same time.
+To improve sampling, we use the QR-decomposition of the design matrix.
 
 
 ```r
@@ -1623,7 +1966,8 @@ summarise_draws(subset(draws_full, variable = c('^c\\['), regex = TRUE))
 The standard deviations are well estimated (very similar to the values based on partitioning the total residuals from the `lmer` fit), and the coefficients are also well estimated.
 
 
-Below, we plot the posterior distribution of $\tau_1$ and $\tau_2$, together with the true value (black) and the value estimated from point estimates of the event terms in the respective magnitude bins (red), with (solid) and without (dashed) uncertainty.
+Below, we plot the posterior distribution of $\tau_1$ and $\tau_2$, together with the true value (black) and the value estimated from point estimates of the event terms in the respective magnitude bins (red), with (dashed) and without (solid) uncertainty.
+The values estimated by TMB are shown as blue vertical lines.
 
 
 ``` r
@@ -1638,7 +1982,8 @@ p1 <- data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'tau_1', re
   geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
   geom_vline(xintercept = tau_sim_val[1], linewidth = 1.5) +
   geom_vline(xintercept = sd(dB_lmer[mageq <= mb_tau[1]]), linewidth = 1.5, color = 'red') +
-  geom_vline(xintercept = tmp, , linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  geom_vline(xintercept = tmp, linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  geom_vline(xintercept = model_tmb$report()$tau_sm, linewidth = 1.5, color = 'blue') +
   guides(color = guide_legend(title = NULL)) +
   theme(legend.position = c(0.8,0.8)) +
   xlab('tau_1')
@@ -1656,6 +2001,7 @@ p2 <- data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'tau_2', re
   geom_vline(xintercept = tau_sim_val[2], linewidth = 1.5) +
   geom_vline(xintercept = sd(dB_lmer[mageq >= mb_tau[2]]), linewidth = 1.5, color = 'red') +
   geom_vline(xintercept = tmp, , linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  geom_vline(xintercept = model_tmb$report()$tau_lm, linewidth = 1.5, color = 'blue') +
   guides(color = guide_legend(title = NULL)) +
   theme(legend.position = c(0.8,0.8)) +
   xlab('tau_2')
@@ -1684,6 +2030,7 @@ p1 <- data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_ss_1',
   geom_vline(xintercept = phi_ss_sim_val[1], linewidth = 1.5) +
   geom_vline(xintercept = sd(dWS_lmer[data_reg$M <= mb_phi[1]]), linewidth = 1.5, color = 'red') +
   geom_vline(xintercept = tmp, linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  geom_vline(xintercept = model_tmb$report()$phi_ss_sm, linewidth = 1.5, color = 'blue') +
   guides(color = guide_legend(title = NULL)) +
   theme(legend.position = c(0.8,0.8)) +
   xlab('phi_ss_1')
@@ -1701,6 +2048,7 @@ p2 <- data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_ss_2',
   geom_vline(xintercept = phi_ss_sim_val[2], linewidth = 1.5) +
   geom_vline(xintercept = sd(dWS_lmer[data_reg$M >= mb_phi[2]]), linewidth = 1.5, color = 'red') +
   geom_vline(xintercept = tmp, linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  geom_vline(xintercept = model_tmb$report()$phi_ss_lm, linewidth = 1.5, color = 'blue') +
   guides(color = guide_legend(title = NULL)) +
   theme(legend.position = c(0.8,0.8)) +
   xlab('phi_ss_2')
@@ -1724,6 +2072,7 @@ data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_s2s', regex 
   geom_vline(xintercept = sd(dS_lmer), linewidth = 1.5, color = 'red') +
   geom_vline(xintercept = sqrt((sum(dS_lmer^2) + sum(sd_dS_lmer^2)) / n_stat),
              linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  geom_vline(xintercept = model_tmb$report()$phi_s2s, linewidth = 1.5, color = 'blue') +
   guides(color = guide_legend(title = NULL)) +
   theme(legend.position = c(0.3,0.8)) +
   xlab('phi_S2S')
@@ -2740,7 +3089,7 @@ summary(fit_inla)
 ##    = inla.mode, safe = FALSE, debug = debug, ", " .parent.frame = 
 ##    .parent.frame)") 
 ## Time used:
-##     Pre = 9.57, Running = 593, Post = 2.35, Total = 605 
+##     Pre = 9.55, Running = 327, Post = 3.33, Total = 340 
 ## Fixed effects:
 ##              mean    sd 0.025quant 0.5quant 0.975quant  mode kld
 ## intercept_1 0.025 0.028     -0.030    0.025      0.079 0.025   0
@@ -2761,16 +3110,16 @@ summary(fit_inla)
 ## Model hyperparameters:
 ##                          mean    sd 0.025quant 0.5quant 0.975quant   mode
 ## Precision for recid_1   4.017 0.061      3.887    4.021      4.124  4.039
-## Precision for eqid_1    7.067 0.526      6.000    7.080      8.063  7.178
-## Precision for statid_1  5.750 0.261      5.215    5.759      6.243  5.804
-## Precision for recid_2  17.332 0.199     16.978   17.319     17.759 17.268
-## Precision for eqid_2   40.829 3.589     35.275   40.359     49.262 38.716
-## Precision for statid_2 20.098 1.908     15.968   20.302     23.184 21.284
+## Precision for eqid_1    7.068 0.526      6.001    7.081      8.064  7.180
+## Precision for statid_1  5.750 0.261      5.215    5.758      6.243  5.804
+## Precision for recid_2  17.332 0.199     16.978   17.319     17.760 17.268
+## Precision for eqid_2   40.823 3.589     35.270   40.353     49.254 38.711
+## Precision for statid_2 20.102 1.905     15.979   20.305     23.184 21.286
 ## Beta for recid_2_1      0.989 0.005      0.978    0.989      0.998  0.991
 ## Beta for eqid_2_1       1.023 0.023      0.982    1.022      1.072  1.016
 ## Beta for statid_2_1     0.765 0.020      0.726    0.765      0.804  0.765
 ## 
-## Marginal log-Likelihood:  -11741.61 
+## Marginal log-Likelihood:  -11741.62 
 ##  is computed 
 ## Posterior summaries for the linear predictor and the fitted values are computed
 ## (Posterior marginals needs also 'control.compute=list(return.marginals.predictor=TRUE)')
@@ -2787,7 +3136,7 @@ hyperpar['Precision for recid_1',par]
 ```
 
 ```
-## [1] 4.016675
+## [1] 4.016748
 ```
 
 ``` r
@@ -2807,6 +3156,455 @@ vars <- c(1/hyperpar['Precision for statid_1',par],
           1/hyperpar['Precision for statid_2',par])
 rho_stat_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
 ```
+
+It is also possible to use TMB to fit a multivariate mixed-effects model.
+
+
+``` r
+compile(file.path('./Git/MixedModels_Biases/', 'tmb', "mv_mixed_model.cpp"))
+```
+
+```
+## [1] 0
+```
+
+``` r
+dyn.load(dynlib(file.path('./Git/MixedModels_Biases/', 'tmb', "mv_mixed_model")))
+
+data_list <- list(Y = cbind(data_reg$y_sim1, data_reg$y_sim2), eq= eq - 1, stat = stat - 1)
+parameters <- list(
+  u_eq = matrix(0, nrow = n_eq, ncol = 2),    # Random effects for eq
+  u_stat = matrix(0, nrow = n_stat, ncol = 2),# Random effects for stat
+  beta = rep(0,2),                                # Intercept
+  log_sigma_rec = rep(0,2),                       # Log residual standard deviation
+  log_sigma_eq = rep(0,2),                        # Log eq standard deviation
+  log_sigma_stat = rep(0,2),                      # Log stat standard deviation
+  rho_eq = 0,
+  rho_stat=0,
+  rho_rec = 0
+)
+
+model_tmb <- MakeADFun(data = data_list, parameters = parameters, random = c("u_eq", "u_stat"), 
+                       DLL = "mv_mixed_model")
+```
+
+```
+## Constructing atomic invpd
+## Constructing atomic invpd
+## Constructing atomic matmul
+```
+
+``` r
+fit <- nlminb(model_tmb$par, model_tmb$fn, model_tmb$gr)
+```
+
+```
+## Constructing atomic invpd
+## Constructing atomic matmul
+## Optimizing tape... Done
+## iter: 1  value: 29525.02 mgc: 187.1611 ustep: 1 
+## iter: 2  mgc: 2.542411e-13 
+## iter: 1  mgc: 2.542411e-13 
+## Matching hessian patterns... Done
+## outer mgc:  8414.944 
+## iter: 1  value: 18788.44 mgc: 3.477825 ustep: 1 
+## iter: 2  mgc: 6.683543e-14 
+## iter: 1  mgc: 6.683543e-14 
+## outer mgc:  8262.492 
+## iter: 1  value: 11690.92 mgc: 3.429611 ustep: 1 
+## iter: 2  mgc: 3.703704e-13 
+## iter: 1  mgc: 3.703704e-13 
+## outer mgc:  3720.581 
+## iter: 1  value: 38272.54 mgc: 18.87724 ustep: 1 
+## iter: 2  mgc: 5.591083e-13 
+## iter: 1  value: 11378.4 mgc: 1.048765 ustep: 1 
+## iter: 2  mgc: 1.731948e-13 
+## iter: 1  mgc: 1.731948e-13 
+## outer mgc:  2636.213 
+## iter: 1  value: 11089.16 mgc: 0.8946025 ustep: 1 
+## iter: 2  mgc: 1.558198e-13 
+## iter: 1  mgc: 1.558198e-13 
+## outer mgc:  2265.329 
+## iter: 1  value: 10963.32 mgc: 2.02871 ustep: 1 
+## iter: 2  mgc: 1.705303e-13 
+## iter: 1  mgc: 1.705303e-13 
+## outer mgc:  6240.502 
+## iter: 1  value: 10144 mgc: 8.549239 ustep: 1 
+## iter: 2  mgc: 2.23821e-13 
+## iter: 1  mgc: 2.23821e-13 
+## outer mgc:  1930.439 
+## iter: 1  value: 9273.193 mgc: 12.47951 ustep: 1 
+## iter: 2  mgc: 2.939871e-13 
+## iter: 1  mgc: 2.939871e-13 
+## outer mgc:  3002.714 
+## iter: 1  value: 9017.576 mgc: 14.50988 ustep: 1 
+## iter: 2  mgc: 3.03757e-13 
+## iter: 1  mgc: 3.03757e-13 
+## outer mgc:  2927.981 
+## iter: 1  value: 9161.683 mgc: 17.27054 ustep: 1 
+## iter: 2  mgc: 3.311795e-13 
+## iter: 1  value: 8930.356 mgc: 5.765247 ustep: 1 
+## iter: 2  mgc: 2.643441e-13 
+## iter: 1  mgc: 2.643441e-13 
+## outer mgc:  4296.473 
+## iter: 1  value: 8695.775 mgc: 3.094527 ustep: 1 
+## iter: 2  mgc: 1.900702e-13 
+## iter: 1  mgc: 1.900702e-13 
+## outer mgc:  1176.639 
+## iter: 1  value: 8531.715 mgc: 11.90347 ustep: 1 
+## iter: 2  mgc: 2.500222e-13 
+## iter: 1  mgc: 2.500222e-13 
+## outer mgc:  1960.718 
+## iter: 1  value: 8397.135 mgc: 27.83932 ustep: 1 
+## iter: 2  mgc: 2.605693e-13 
+## iter: 1  mgc: 2.605693e-13 
+## outer mgc:  1204.567 
+## iter: 1  value: 8292.434 mgc: 15.66605 ustep: 1 
+## iter: 2  mgc: 3.252953e-13 
+## iter: 1  mgc: 3.252953e-13 
+## outer mgc:  1830.742 
+## iter: 1  value: 8158.582 mgc: 7.357397 ustep: 1 
+## iter: 2  mgc: 4.265477e-13 
+## iter: 1  mgc: 4.265477e-13 
+## outer mgc:  1073.229 
+## iter: 1  value: 8076.009 mgc: 5.602051 ustep: 1 
+## iter: 2  mgc: 3.292921e-13 
+## iter: 1  mgc: 3.292921e-13 
+## outer mgc:  600.0464 
+## iter: 1  value: 8121.81 mgc: 192.8388 ustep: 1 
+## iter: 2  mgc: 6.257217e-13 
+## iter: 1  value: 8047.028 mgc: 60.36592 ustep: 1 
+## iter: 2  mgc: 2.150502e-13 
+## iter: 1  mgc: 2.150502e-13 
+## outer mgc:  1140.09 
+## iter: 1  value: 7960.773 mgc: 162.1899 ustep: 1 
+## iter: 2  mgc: 7.328582e-13 
+## iter: 1  mgc: 7.328582e-13 
+## outer mgc:  440.6349 
+## iter: 1  value: 8074.38 mgc: 1823.32 ustep: 1 
+## iter: 2  mgc: 4.220624e-12 
+## iter: 1  value: 7941.337 mgc: 235.8653 ustep: 1 
+## iter: 2  mgc: 9.191814e-13 
+## iter: 1  value: 7944.603 mgc: 52.84634 ustep: 1 
+## iter: 2  mgc: 2.853273e-13 
+## iter: 1  value: 7947.85 mgc: 11.89736 ustep: 1 
+## iter: 2  mgc: 3.290701e-13 
+## iter: 1  mgc: 3.290701e-13 
+## outer mgc:  425.163 
+## iter: 1  value: 7941.295 mgc: 32.03 ustep: 1 
+## iter: 2  mgc: 2.773337e-13 
+## iter: 1  mgc: 2.773337e-13 
+## outer mgc:  392.2537 
+## iter: 1  value: 7932.5 mgc: 123.7359 ustep: 1 
+## iter: 2  mgc: 3.788081e-13 
+## iter: 1  mgc: 3.788081e-13 
+## outer mgc:  428.8321 
+## iter: 1  value: 7930.604 mgc: 153.9242 ustep: 1 
+## iter: 2  mgc: 1.018616e-12 
+## iter: 1  mgc: 1.018616e-12 
+## outer mgc:  332.9234 
+## iter: 1  value: 7910.571 mgc: 212.4109 ustep: 1 
+## iter: 2  mgc: 4.672374e-13 
+## iter: 1  mgc: 4.672374e-13 
+## outer mgc:  331.4937 
+## iter: 1  value: 7877.016 mgc: 641.0482 ustep: 1 
+## iter: 2  mgc: 1.821654e-12 
+## iter: 1  mgc: 1.821654e-12 
+## outer mgc:  818.3621 
+## iter: 1  value: 8615.153 mgc: 766.6736 ustep: 1 
+## iter: 2  mgc: 2.22844e-12 
+## iter: 1  value: 7876.676 mgc: 78.79432 ustep: 1 
+## iter: 2  mgc: 4.192202e-13 
+## iter: 1  mgc: 4.192202e-13 
+## outer mgc:  880.5812 
+## iter: 1  value: 7864.062 mgc: 70.08127 ustep: 1 
+## iter: 2  mgc: 4.34569e-13 
+## iter: 1  mgc: 4.34569e-13 
+## outer mgc:  336.4169 
+## iter: 1  value: 7854.563 mgc: 135.6093 ustep: 1 
+## iter: 2  mgc: 5.669909e-13 
+## iter: 1  mgc: 5.669909e-13 
+## outer mgc:  721.7613 
+## iter: 1  value: 7831.925 mgc: 61.13598 ustep: 1 
+## iter: 2  mgc: 3.96772e-13 
+## iter: 1  mgc: 3.96772e-13 
+## outer mgc:  442.0548 
+## iter: 1  value: 7817.584 mgc: 157.9104 ustep: 1 
+## iter: 2  mgc: 1.265044e-12 
+## iter: 1  mgc: 1.265044e-12 
+## outer mgc:  244.4966 
+## iter: 1  value: 8209.094 mgc: 546.5961 ustep: 1 
+## iter: 2  mgc: 3.073056e-12 
+## iter: 1  value: 7820.641 mgc: 57.55388 ustep: 1 
+## iter: 2  mgc: 3.730349e-13 
+## iter: 1  mgc: 3.730349e-13 
+## outer mgc:  531.6876 
+## iter: 1  value: 7815.778 mgc: 15.77451 ustep: 1 
+## iter: 2  mgc: 2.646772e-13 
+## iter: 1  mgc: 2.646772e-13 
+## outer mgc:  271.8246 
+## iter: 1  value: 7810.733 mgc: 6.866189 ustep: 1 
+## iter: 2  mgc: 3.548273e-13 
+## iter: 1  mgc: 3.548273e-13 
+## outer mgc:  300.4811 
+## iter: 1  value: 7801.766 mgc: 81.2885 ustep: 1 
+## iter: 2  mgc: 3.002043e-13 
+## iter: 1  mgc: 3.002043e-13 
+## outer mgc:  323.8031 
+## iter: 1  value: 7792.768 mgc: 181.4265 ustep: 1 
+## iter: 2  mgc: 5.618839e-13 
+## iter: 1  mgc: 5.618839e-13 
+## outer mgc:  222.2822 
+## iter: 1  value: 8009.926 mgc: 118.6048 ustep: 1 
+## iter: 2  mgc: 3.765044e-13 
+## iter: 1  value: 7800.337 mgc: 18.50436 ustep: 1 
+## iter: 2  mgc: 2.928768e-13 
+## iter: 1  mgc: 2.928768e-13 
+## outer mgc:  496.9399 
+## iter: 1  value: 7791.783 mgc: 12.36702 ustep: 1 
+## iter: 2  mgc: 3.268497e-13 
+## iter: 1  mgc: 3.268497e-13 
+## outer mgc:  344.1226 
+## iter: 1  value: 7782.797 mgc: 9.480624 ustep: 1 
+## iter: 2  mgc: 1.945111e-13 
+## iter: 1  mgc: 1.945111e-13 
+## outer mgc:  173.2724 
+## iter: 1  value: 7780.386 mgc: 15.33607 ustep: 1 
+## iter: 2  mgc: 4.654055e-13 
+## iter: 1  mgc: 4.654055e-13 
+## outer mgc:  344.0241 
+## iter: 1  value: 7791.816 mgc: 49.2746 ustep: 1 
+## iter: 2  mgc: 1.382783e-12 
+## iter: 1  mgc: 1.382783e-12 
+## outer mgc:  175.8022 
+## iter: 1  value: 7763.347 mgc: 32.44712 ustep: 1 
+## iter: 2  mgc: 2.646106e-12 
+## iter: 1  mgc: 2.646106e-12 
+## outer mgc:  102.2599 
+## iter: 1  value: 7772.989 mgc: 156.4455 ustep: 1 
+## iter: 2  mgc: 1.776135e-12 
+## iter: 1  value: 7765.861 mgc: 55.41363 ustep: 1 
+## iter: 2  mgc: 3.455014e-13 
+## iter: 1  value: 7763.078 mgc: 22.17492 ustep: 1 
+## iter: 2  mgc: 2.498002e-13 
+## iter: 1  mgc: 2.498002e-13 
+## outer mgc:  246.9583 
+## iter: 1  value: 7760.504 mgc: 8.108056 ustep: 1 
+## iter: 2  mgc: 1.811884e-13 
+## iter: 1  mgc: 1.811884e-13 
+## outer mgc:  141.377 
+## iter: 1  value: 7758.61 mgc: 10.10685 ustep: 1 
+## iter: 2  mgc: 4.156675e-13 
+## iter: 1  mgc: 4.156675e-13 
+## outer mgc:  149.1897 
+## iter: 1  value: 7762.726 mgc: 4.368296 ustep: 1 
+## iter: 2  mgc: 4.7784e-13 
+## iter: 1  mgc: 4.7784e-13 
+## outer mgc:  178.7151 
+## iter: 1  value: 7772.347 mgc: 27.30822 ustep: 1 
+## iter: 2  mgc: 3.446132e-13 
+## iter: 1  mgc: 3.446132e-13 
+## outer mgc:  177.9001 
+## iter: 1  value: 7748.9 mgc: 24.00763 ustep: 1 
+## iter: 2  mgc: 7.494005e-13 
+## iter: 1  mgc: 7.494005e-13 
+## outer mgc:  97.60058 
+## iter: 1  value: 7770.892 mgc: 117.8528 ustep: 1 
+## iter: 2  mgc: 1.273537e-12 
+## iter: 1  value: 7757.34 mgc: 62.51342 ustep: 1 
+## iter: 2  mgc: 3.104184e-13 
+## iter: 1  mgc: 3.104184e-13 
+## outer mgc:  438.0677 
+## iter: 1  value: 7771.136 mgc: 43.76328 ustep: 1 
+## iter: 2  mgc: 5.071499e-13 
+## iter: 1  value: 7763.538 mgc: 18.98584 ustep: 1 
+## iter: 2  mgc: 6.876721e-13 
+## iter: 1  mgc: 6.876721e-13 
+## outer mgc:  375.8269 
+## iter: 1  value: 7764.061 mgc: 4.736628 ustep: 1 
+## iter: 2  mgc: 2.569056e-13 
+## iter: 1  mgc: 2.569056e-13 
+## outer mgc:  54.25653 
+## iter: 1  value: 7758.653 mgc: 29.03253 ustep: 1 
+## iter: 2  mgc: 3.481659e-13 
+## iter: 1  mgc: 3.481659e-13 
+## outer mgc:  154.3598 
+## iter: 1  value: 7761.399 mgc: 6.558716 ustep: 1 
+## iter: 2  mgc: 2.744471e-13 
+## iter: 1  mgc: 2.744471e-13 
+## outer mgc:  140.666 
+## iter: 1  value: 7763.618 mgc: 28.78369 ustep: 1 
+## iter: 2  mgc: 2.567946e-13 
+## iter: 1  mgc: 2.567946e-13 
+## outer mgc:  48.39841 
+## iter: 1  value: 7757.029 mgc: 12.38985 ustep: 1 
+## iter: 2  mgc: 2.782219e-13 
+## iter: 1  mgc: 2.782219e-13 
+## outer mgc:  212.2126 
+## iter: 1  value: 7749.538 mgc: 36.4923 ustep: 1 
+## iter: 2  mgc: 3.005374e-13 
+## iter: 1  mgc: 3.005374e-13 
+## outer mgc:  170.9197 
+## iter: 1  value: 7748.854 mgc: 23.24288 ustep: 1 
+## iter: 2  mgc: 2.347011e-13 
+## iter: 1  mgc: 2.347011e-13 
+## outer mgc:  244.6576 
+## iter: 1  value: 7752.963 mgc: 25.21726 ustep: 1 
+## iter: 2  mgc: 3.250733e-13 
+## iter: 1  mgc: 3.250733e-13 
+## outer mgc:  59.99955 
+## iter: 1  value: 7759.622 mgc: 18.02733 ustep: 1 
+## iter: 2  mgc: 3.117506e-13 
+## iter: 1  mgc: 3.117506e-13 
+## outer mgc:  145.8474 
+## iter: 1  value: 7753.045 mgc: 7.360323 ustep: 1 
+## iter: 2  mgc: 6.028511e-13 
+## iter: 1  mgc: 6.028511e-13 
+## outer mgc:  86.64171 
+## iter: 1  value: 7749.34 mgc: 6.258627 ustep: 1 
+## iter: 2  mgc: 3.750333e-13 
+## iter: 1  mgc: 3.750333e-13 
+## outer mgc:  89.41798 
+## iter: 1  value: 7745.511 mgc: 41.14145 ustep: 1 
+## iter: 2  mgc: 4.567458e-13 
+## iter: 1  mgc: 4.567458e-13 
+## outer mgc:  52.54924 
+## iter: 1  value: 7751.195 mgc: 27.26082 ustep: 1 
+## iter: 2  mgc: 4.476419e-13 
+## iter: 1  mgc: 4.476419e-13 
+## outer mgc:  224.9045 
+## iter: 1  value: 7748.213 mgc: 0.7852071 ustep: 1 
+## iter: 2  mgc: 2.380318e-13 
+## iter: 1  mgc: 2.380318e-13 
+## outer mgc:  137.2332 
+## iter: 1  value: 7746.198 mgc: 6.918867 ustep: 1 
+## iter: 2  mgc: 3.641532e-13 
+## iter: 1  mgc: 3.641532e-13 
+## outer mgc:  73.39838 
+## iter: 1  value: 7744.116 mgc: 8.985009 ustep: 1 
+## iter: 2  mgc: 5.790923e-13 
+## iter: 1  mgc: 5.790923e-13 
+## outer mgc:  33.89238 
+## iter: 1  value: 7743.037 mgc: 7.688928 ustep: 1 
+## iter: 2  mgc: 3.960443e-13 
+## iter: 1  mgc: 3.960443e-13 
+## outer mgc:  23.96138 
+## iter: 1  value: 7743.893 mgc: 9.417456 ustep: 1 
+## iter: 2  mgc: 3.259615e-13 
+## iter: 1  mgc: 3.259615e-13 
+## outer mgc:  10.0901 
+## iter: 1  value: 7740.946 mgc: 10.07272 ustep: 1 
+## iter: 2  mgc: 2.120526e-13 
+## iter: 1  mgc: 2.120526e-13 
+## outer mgc:  53.3089 
+## iter: 1  value: 7738.554 mgc: 4.499271 ustep: 1 
+## iter: 2  mgc: 4.261036e-13 
+## iter: 1  mgc: 4.261036e-13 
+## outer mgc:  53.09082 
+## iter: 1  value: 7738.085 mgc: 8.145111 ustep: 1 
+## iter: 2  mgc: 3.78364e-13 
+## iter: 1  value: 7738.335 mgc: 3.187845 ustep: 1 
+## iter: 2  mgc: 2.878114e-13 
+## iter: 1  mgc: 2.878114e-13 
+## outer mgc:  22.40199 
+## iter: 1  value: 7739.158 mgc: 1.436911 ustep: 1 
+## iter: 2  mgc: 2.808864e-13 
+## iter: 1  mgc: 2.808864e-13 
+## outer mgc:  28.45585 
+## iter: 1  value: 7739.521 mgc: 0.9999197 ustep: 1 
+## iter: 2  mgc: 3.03757e-13 
+## iter: 1  mgc: 3.03757e-13 
+## outer mgc:  8.881558 
+## iter: 1  value: 7739.156 mgc: 1.956724 ustep: 1 
+## iter: 2  mgc: 2.753353e-13 
+## iter: 1  value: 7738.556 mgc: 3.321834 ustep: 1 
+## iter: 2  mgc: 4.03233e-13 
+## iter: 1  mgc: 4.03233e-13 
+## outer mgc:  9.500194 
+## iter: 1  value: 7737.508 mgc: 5.566734 ustep: 1 
+## iter: 2  mgc: 2.355893e-13 
+## iter: 1  mgc: 2.355893e-13 
+## outer mgc:  8.990891 
+## iter: 1  value: 7741.563 mgc: 2.163325 ustep: 1 
+## iter: 2  mgc: 2.672307e-13 
+## iter: 1  value: 7738.599 mgc: 0.5828614 ustep: 1 
+## iter: 2  mgc: 2.993161e-13 
+## iter: 1  mgc: 2.993161e-13 
+## outer mgc:  6.330356 
+## iter: 1  value: 7737.48 mgc: 2.898177 ustep: 1 
+## iter: 2  mgc: 2.473577e-13 
+## iter: 1  value: 7738.309 mgc: 0.7787928 ustep: 1 
+## iter: 2  mgc: 4.565237e-13 
+## iter: 1  mgc: 4.565237e-13 
+## outer mgc:  3.08946 
+## iter: 1  value: 7738.176 mgc: 0.5333541 ustep: 1 
+## iter: 2  mgc: 3.026468e-13 
+## iter: 1  value: 7738.28 mgc: 0.19869 ustep: 1 
+## iter: 2  mgc: 1.953993e-13 
+## iter: 1  mgc: 1.953993e-13 
+## outer mgc:  1.595016 
+## iter: 1  value: 7738.195 mgc: 0.2875206 ustep: 1 
+## iter: 2  mgc: 2.102762e-13 
+## iter: 1  mgc: 2.102762e-13 
+## outer mgc:  0.9994642 
+## iter: 1  value: 7738.034 mgc: 0.1397972 ustep: 1 
+## iter: 2  mgc: 3.863576e-13 
+## iter: 1  mgc: 3.863576e-13 
+## outer mgc:  1.32583 
+## iter: 1  value: 7738.094 mgc: 0.1535139 ustep: 1 
+## iter: 2  mgc: 5.291323e-13 
+## iter: 1  mgc: 5.291323e-13 
+## outer mgc:  0.08353397 
+## iter: 1  value: 7738.1 mgc: 0.06355564 ustep: 1 
+## iter: 2  mgc: 2.646217e-13 
+## iter: 1  mgc: 2.646217e-13 
+## outer mgc:  0.3166475 
+## iter: 1  value: 7738.095 mgc: 0.04645831 ustep: 1 
+## iter: 2  mgc: 3.499423e-13 
+## iter: 1  mgc: 3.499423e-13 
+## outer mgc:  0.1020908 
+## iter: 1  value: 7738.095 mgc: 0.03768262 ustep: 1 
+## iter: 2  mgc: 3.077538e-13 
+## iter: 1  mgc: 3.077538e-13 
+## outer mgc:  0.0122225 
+## iter: 1  mgc: 3.077538e-13
+```
+
+``` r
+print(fit$par)
+```
+
+```
+##           beta           beta  log_sigma_rec  log_sigma_rec   log_sigma_eq 
+##    0.025016329    0.005626746   -0.695740788   -0.602128553   -0.915978364 
+##   log_sigma_eq log_sigma_stat log_sigma_stat         rho_eq       rho_stat 
+##   -0.816557734   -0.848787707   -0.926386794    3.161844672    1.501872488 
+##        rho_rec 
+##    2.068580502
+```
+
+``` r
+print(model_tmb$report())
+```
+
+```
+## $Cor_rec
+##           [,1]      [,2]
+## [1,] 1.0000000 0.9003172
+## [2,] 0.9003172 1.0000000
+## 
+## $Cor_eq
+##           [,1]      [,2]
+## [1,] 1.0000000 0.9534507
+## [2,] 0.9534507 1.0000000
+## 
+## $Cor_stat
+##           [,1]      [,2]
+## [1,] 1.0000000 0.8323695
+## [2,] 0.8323695 1.0000000
+```
+
+The estimated correlations look good.
 
 Below we look at the posterior distributions of the estimated correlations.
 The vertical black line is the true value, and the solid red line is the value estimated from the randomeffects ore residuals.
@@ -3121,6 +3919,455 @@ summarise_draws(subset(draws, variable = c('tau','phi','rho'), regex = TRUE))
 ## 9 rho_stat   0.751  0.752 0.0193  0.0196  0.717 0.782 1.01      376.     569.
 ```
 
+Now we fit the TMB model.
+
+
+``` r
+compile(file.path('./Git/MixedModels_Biases/', 'tmb', "mv_mixed_model.cpp"))
+```
+
+```
+## [1] 0
+```
+
+``` r
+dyn.load(dynlib(file.path('./Git/MixedModels_Biases/', 'tmb', "mv_mixed_model")))
+
+data_list <- list(Y = cbind(data_reg$y_sim1, data_reg$y_sim2), eq= eq - 1, stat = stat - 1)
+parameters <- list(
+  u_eq = matrix(0, nrow = n_eq, ncol = 2),    # Random effects for eq
+  u_stat = matrix(0, nrow = n_stat, ncol = 2),# Random effects for stat
+  beta = rep(0,2),                                # Intercept
+  log_sigma_rec = rep(0,2),                       # Log residual standard deviation
+  log_sigma_eq = rep(0,2),                        # Log eq standard deviation
+  log_sigma_stat = rep(0,2),                      # Log stat standard deviation
+  rho_eq = 0,
+  rho_stat=0,
+  rho_rec = 0
+)
+
+model_tmb <- MakeADFun(data = data_list, parameters = parameters, random = c("u_eq", "u_stat"), 
+                       DLL = "mv_mixed_model")
+
+fit <- nlminb(model_tmb$par, model_tmb$fn, model_tmb$gr)
+```
+
+```
+## Optimizing tape... Done
+## iter: 1  value: 29523.71 mgc: 186.7412 ustep: 1 
+## iter: 2  mgc: 5.333511e-13 
+## iter: 1  mgc: 5.333511e-13 
+## Matching hessian patterns... Done
+## outer mgc:  8411.529 
+## iter: 1  value: 20115.15 mgc: 3.879748 ustep: 1 
+## iter: 2  mgc: 1.093847e-13 
+## iter: 1  mgc: 1.093847e-13 
+## outer mgc:  4765.333 
+## iter: 1  value: 19316.4 mgc: 5.411831 ustep: 1 
+## iter: 2  mgc: 1.119105e-13 
+## iter: 1  mgc: 1.119105e-13 
+## outer mgc:  7354.403 
+## iter: 1  value: 19748.56 mgc: 2.688288 ustep: 1 
+## iter: 2  mgc: 1.079137e-13 
+## iter: 1  mgc: 1.079137e-13 
+## outer mgc:  5899.446 
+## iter: 1  value: 19254.82 mgc: 3.044304 ustep: 1 
+## iter: 2  mgc: 1.275646e-13 
+## iter: 1  mgc: 1.275646e-13 
+## outer mgc:  5431.585 
+## iter: 1  value: 18279.24 mgc: 5.678817 ustep: 1 
+## iter: 2  mgc: 1.49436e-13 
+## iter: 1  mgc: 1.49436e-13 
+## outer mgc:  7607.62 
+## iter: 1  value: 17488.38 mgc: 7.4946 ustep: 1 
+## iter: 2  mgc: 8.171241e-14 
+## iter: 1  mgc: 8.171241e-14 
+## outer mgc:  3026.549 
+## iter: 1  value: 17690.9 mgc: 7.147676 ustep: 1 
+## iter: 2  mgc: 5.440093e-14 
+## iter: 1  value: 17366.96 mgc: 3.140794 ustep: 1 
+## iter: 2  mgc: 7.438494e-14 
+## iter: 1  mgc: 7.438494e-14 
+## outer mgc:  2146.424 
+## iter: 1  value: 16910.21 mgc: 5.256305 ustep: 1 
+## iter: 2  mgc: 6.838974e-14 
+## iter: 1  mgc: 6.838974e-14 
+## outer mgc:  418.3738 
+## iter: 1  value: 17056.17 mgc: 6.103197 ustep: 1 
+## iter: 2  mgc: 4.662937e-14 
+## iter: 1  value: 17034.35 mgc: 1.552591 ustep: 1 
+## iter: 2  mgc: 7.860379e-14 
+## iter: 1  value: 16944.67 mgc: 0.7282526 ustep: 1 
+## iter: 2  mgc: 9.747758e-14 
+## iter: 1  mgc: 9.747758e-14 
+## outer mgc:  254.7382 
+## iter: 1  value: 16872.75 mgc: 1.154493 ustep: 1 
+## iter: 2  mgc: 7.349676e-14 
+## iter: 1  mgc: 7.349676e-14 
+## outer mgc:  294.2955 
+## iter: 1  value: 16877.75 mgc: 2.843102 ustep: 1 
+## iter: 2  mgc: 7.760459e-14 
+## iter: 1  mgc: 7.760459e-14 
+## outer mgc:  440.7544 
+## iter: 1  value: 16749.61 mgc: 6.3614 ustep: 1 
+## iter: 2  mgc: 6.150636e-14 
+## iter: 1  mgc: 6.150636e-14 
+## outer mgc:  406.9165 
+## iter: 1  value: 16748.89 mgc: 4.754764 ustep: 1 
+## iter: 2  mgc: 7.893686e-14 
+## iter: 1  mgc: 7.893686e-14 
+## outer mgc:  501.4171 
+## iter: 1  value: 16696.17 mgc: 1.533121 ustep: 1 
+## iter: 2  mgc: 9.581225e-14 
+## iter: 1  mgc: 9.581225e-14 
+## outer mgc:  374.3705 
+## iter: 1  value: 16626.03 mgc: 1.084944 ustep: 1 
+## iter: 2  mgc: 1.087463e-13 
+## iter: 1  value: 16561.32 mgc: 2.263428 ustep: 1 
+## iter: 2  mgc: 6.505907e-14 
+## iter: 1  value: 16412.33 mgc: 9.361336 ustep: 1 
+## iter: 2  mgc: 7.505108e-14 
+## iter: 1  mgc: 7.505108e-14 
+## outer mgc:  601.6042 
+## iter: 1  value: 16689.81 mgc: 166.1902 ustep: 1 
+## iter: 2  mgc: 1.41287e-12 
+## iter: 1  value: 16702.82 mgc: 33.31093 ustep: 1 
+## iter: 2  mgc: 1.598556e-13 
+## iter: 1  value: 16465.59 mgc: 5.940385 ustep: 1 
+## iter: 2  mgc: 6.716849e-14 
+## iter: 1  mgc: 6.716849e-14 
+## outer mgc:  922.6986 
+## iter: 1  value: 16374.04 mgc: 8.654327 ustep: 1 
+## iter: 2  mgc: 1.032507e-13 
+## iter: 1  mgc: 1.032507e-13 
+## outer mgc:  325.4351 
+## iter: 1  value: 16375.54 mgc: 6.355382 ustep: 1 
+## iter: 2  mgc: 9.25926e-14 
+## iter: 1  mgc: 9.25926e-14 
+## outer mgc:  252.8468 
+## iter: 1  value: 16347.33 mgc: 1.210619 ustep: 1 
+## iter: 2  mgc: 5.820344e-14 
+## iter: 1  mgc: 5.820344e-14 
+## outer mgc:  180.9051 
+## iter: 1  value: 16337.94 mgc: 18.29357 ustep: 1 
+## iter: 2  mgc: 1.94289e-13 
+## iter: 1  mgc: 1.94289e-13 
+## outer mgc:  99.04039 
+## iter: 1  value: 16329.33 mgc: 85.31274 ustep: 1 
+## iter: 2  mgc: 1.689759e-13 
+## iter: 1  mgc: 1.689759e-13 
+## outer mgc:  163.426 
+## iter: 1  value: 16307.71 mgc: 89.05969 ustep: 1 
+## iter: 2  mgc: 2.846612e-13 
+## iter: 1  mgc: 2.846612e-13 
+## outer mgc:  55.80911 
+## iter: 1  value: 16324.33 mgc: 43.85655 ustep: 1 
+## iter: 2  mgc: 1.776218e-13 
+## iter: 1  mgc: 1.776218e-13 
+## outer mgc:  349.9787 
+## iter: 1  value: 16288.34 mgc: 6.309794 ustep: 1 
+## iter: 2  mgc: 9.4591e-14 
+## iter: 1  mgc: 9.4591e-14 
+## outer mgc:  282.951 
+## iter: 1  value: 16298.23 mgc: 2.330647 ustep: 1 
+## iter: 2  mgc: 5.12923e-14 
+## iter: 1  mgc: 5.12923e-14 
+## outer mgc:  87.38411 
+## iter: 1  value: 16294.06 mgc: 6.43078 ustep: 1 
+## iter: 2  mgc: 9.614531e-14 
+## iter: 1  mgc: 9.614531e-14 
+## outer mgc:  144.8323 
+## iter: 1  value: 16290.94 mgc: 8.735822 ustep: 1 
+## iter: 2  mgc: 1.021405e-13 
+## iter: 1  mgc: 1.021405e-13 
+## outer mgc:  115.9255 
+## iter: 1  value: 16290.67 mgc: 3.409969 ustep: 1 
+## iter: 2  mgc: 7.244205e-14 
+## iter: 1  mgc: 7.244205e-14 
+## outer mgc:  34.20381 
+## iter: 1  value: 16283.31 mgc: 4.23533 ustep: 1 
+## iter: 2  mgc: 6.972201e-14 
+## iter: 1  mgc: 6.972201e-14 
+## outer mgc:  185.9375 
+## iter: 1  value: 16277.91 mgc: 1.190779 ustep: 1 
+## iter: 2  mgc: 6.927792e-14 
+## iter: 1  mgc: 6.927792e-14 
+## outer mgc:  111.9141 
+## iter: 1  value: 16275.98 mgc: 1.306021 ustep: 1 
+## iter: 2  mgc: 1.114664e-13 
+## iter: 1  mgc: 1.114664e-13 
+## outer mgc:  85.39685 
+## iter: 1  value: 16283.89 mgc: 4.758741 ustep: 1 
+## iter: 2  mgc: 6.905587e-14 
+## iter: 1  mgc: 6.905587e-14 
+## outer mgc:  50.58337 
+## iter: 1  value: 16262.88 mgc: 5.494967 ustep: 1 
+## iter: 2  mgc: 7.993606e-14 
+## iter: 1  mgc: 7.993606e-14 
+## outer mgc:  66.24611 
+## iter: 1  value: 16266.44 mgc: 3.700269 ustep: 1 
+## iter: 2  mgc: 8.371082e-14 
+## iter: 1  mgc: 8.371082e-14 
+## outer mgc:  65.61956 
+## iter: 1  value: 16262.5 mgc: 5.080307 ustep: 1 
+## iter: 2  mgc: 8.237855e-14 
+## iter: 1  mgc: 8.237855e-14 
+## outer mgc:  30.0265 
+## iter: 1  value: 16274.92 mgc: 3.790149 ustep: 1 
+## iter: 2  mgc: 9.903189e-14 
+## iter: 1  mgc: 9.903189e-14 
+## outer mgc:  112.3862 
+## iter: 1  value: 16259.47 mgc: 6.779859 ustep: 1 
+## iter: 2  mgc: 9.792167e-14 
+## iter: 1  mgc: 9.792167e-14 
+## outer mgc:  67.40394 
+## iter: 1  value: 16259.13 mgc: 8.658862 ustep: 1 
+## iter: 2  mgc: 1.082467e-13 
+## iter: 1  mgc: 1.082467e-13 
+## outer mgc:  74.32185 
+## iter: 1  value: 16260.09 mgc: 7.690376 ustep: 1 
+## iter: 2  mgc: 7.827072e-14 
+## iter: 1  value: 16258.41 mgc: 2.461199 ustep: 1 
+## iter: 2  mgc: 1.367795e-13 
+## iter: 1  value: 16257.66 mgc: 0.414793 ustep: 1 
+## iter: 2  mgc: 7.172041e-14 
+## iter: 1  mgc: 7.172041e-14 
+## outer mgc:  101.4781 
+## iter: 1  value: 16257.73 mgc: 0.09422504 ustep: 1 
+## iter: 2  mgc: 1.056932e-13 
+## iter: 1  mgc: 1.056932e-13 
+## outer mgc:  19.09966 
+## iter: 1  value: 16257.57 mgc: 0.4747697 ustep: 1 
+## iter: 2  mgc: 7.283063e-14 
+## iter: 1  mgc: 7.283063e-14 
+## outer mgc:  44.46343 
+## iter: 1  value: 16256.39 mgc: 2.314135 ustep: 1 
+## iter: 2  mgc: 7.727152e-14 
+## iter: 1  mgc: 7.727152e-14 
+## outer mgc:  36.44729 
+## iter: 1  value: 16253.68 mgc: 2.225687 ustep: 1 
+## iter: 2  mgc: 7.638334e-14 
+## iter: 1  mgc: 7.638334e-14 
+## outer mgc:  25.37354 
+## iter: 1  value: 16255.28 mgc: 0.9650237 ustep: 1 
+## iter: 2  mgc: 5.884182e-14 
+## iter: 1  value: 16258.32 mgc: 1.656759 ustep: 1 
+## iter: 2  mgc: 6.306067e-14 
+## iter: 1  value: 16266.75 mgc: 4.466027 ustep: 1 
+## iter: 2  mgc: 6.57252e-14 
+## iter: 1  mgc: 6.57252e-14 
+## outer mgc:  66.01625 
+## iter: 1  value: 16245.74 mgc: 16.6566 ustep: 1 
+## iter: 2  mgc: 2.519096e-13 
+## iter: 1  mgc: 2.519096e-13 
+## outer mgc:  105.4908 
+## iter: 1  value: 16234.15 mgc: 4.101386 ustep: 1 
+## iter: 2  mgc: 5.551115e-14 
+## iter: 1  mgc: 5.551115e-14 
+## outer mgc:  128.0402 
+## iter: 1  value: 16218.88 mgc: 68.41788 ustep: 1 
+## iter: 2  mgc: 9.564571e-13 
+## iter: 1  value: 16222.6 mgc: 22.31844 ustep: 1 
+## iter: 2  mgc: 1.429967e-13 
+## iter: 1  mgc: 1.429967e-13 
+## outer mgc:  91.10797 
+## iter: 1  value: 16240.88 mgc: 12.75877 ustep: 1 
+## iter: 2  mgc: 1.14464e-13 
+## iter: 1  mgc: 1.14464e-13 
+## outer mgc:  27.13383 
+## iter: 1  value: 16230.59 mgc: 15.6328 ustep: 1 
+## iter: 2  mgc: 8.126833e-14 
+## iter: 1  value: 16231.59 mgc: 9.758363 ustep: 1 
+## iter: 2  mgc: 1.117995e-13 
+## iter: 1  value: 16234.52 mgc: 4.947668 ustep: 1 
+## iter: 2  mgc: 8.071321e-14 
+## iter: 1  mgc: 8.071321e-14 
+## outer mgc:  53.04549 
+## iter: 1  value: 16238.76 mgc: 0.1222353 ustep: 1 
+## iter: 2  mgc: 6.439294e-14 
+## iter: 1  mgc: 6.439294e-14 
+## outer mgc:  12.49311 
+## iter: 1  value: 16239.39 mgc: 0.370698 ustep: 1 
+## iter: 2  mgc: 9.192647e-14 
+## iter: 1  value: 16241.35 mgc: 1.108572 ustep: 1 
+## iter: 2  mgc: 6.750156e-14 
+## iter: 1  mgc: 6.750156e-14 
+## outer mgc:  40.50405 
+## iter: 1  value: 16240.31 mgc: 2.865681 ustep: 1 
+## iter: 2  mgc: 7.238654e-14 
+## iter: 1  mgc: 7.238654e-14 
+## outer mgc:  37.30157 
+## iter: 1  value: 16240.64 mgc: 2.317743 ustep: 1 
+## iter: 2  mgc: 7.038814e-14 
+## iter: 1  mgc: 7.038814e-14 
+## outer mgc:  12.01886 
+## iter: 1  value: 16239.53 mgc: 0.7237824 ustep: 1 
+## iter: 2  mgc: 8.21565e-14 
+## iter: 1  value: 16238.95 mgc: 0.7946829 ustep: 1 
+## iter: 2  mgc: 9.947598e-14 
+## iter: 1  value: 16237.57 mgc: 1.929582 ustep: 1 
+## iter: 2  mgc: 9.814372e-14 
+## iter: 1  mgc: 9.814372e-14 
+## outer mgc:  33.20024 
+## iter: 1  value: 16241.36 mgc: 15.65125 ustep: 1 
+## iter: 2  mgc: 1.47965e-13 
+## iter: 1  mgc: 1.47965e-13 
+## outer mgc:  48.21976 
+## iter: 1  value: 16233.47 mgc: 18.64526 ustep: 1 
+## iter: 2  mgc: 9.681145e-14 
+## iter: 1  mgc: 9.681145e-14 
+## outer mgc:  29.70709 
+## iter: 1  value: 16227.56 mgc: 33.68245 ustep: 1 
+## iter: 2  mgc: 2.244871e-13 
+## iter: 1  mgc: 2.244871e-13 
+## outer mgc:  44.15683 
+## iter: 1  value: 16233.21 mgc: 18.56973 ustep: 1 
+## iter: 2  mgc: 6.705747e-14 
+## iter: 1  value: 16230.47 mgc: 4.864325 ustep: 1 
+## iter: 2  mgc: 6.594725e-14 
+## iter: 1  mgc: 6.594725e-14 
+## outer mgc:  85.17467 
+## iter: 1  value: 16227.59 mgc: 2.695997 ustep: 1 
+## iter: 2  mgc: 8.837375e-14 
+## iter: 1  mgc: 8.837375e-14 
+## outer mgc:  35.65395 
+## iter: 1  value: 16228.57 mgc: 1.08555 ustep: 1 
+## iter: 2  mgc: 6.450396e-14 
+## iter: 1  mgc: 6.450396e-14 
+## outer mgc:  14.38106 
+## iter: 1  value: 16230.11 mgc: 1.613836 ustep: 1 
+## iter: 2  mgc: 9.237056e-14 
+## iter: 1  value: 16234.05 mgc: 1.183155 ustep: 1 
+## iter: 2  mgc: 6.644685e-14 
+## iter: 1  value: 16242.93 mgc: 2.629056 ustep: 1 
+## iter: 2  mgc: 6.977752e-14 
+## iter: 1  mgc: 6.977752e-14 
+## outer mgc:  49.23805 
+## iter: 1  value: 16224.49 mgc: 5.264247 ustep: 1 
+## iter: 2  mgc: 9.747758e-14 
+## iter: 1  mgc: 9.747758e-14 
+## outer mgc:  37.27871 
+## iter: 1  value: 16214.03 mgc: 13.34709 ustep: 1 
+## iter: 2  mgc: 1.163514e-13 
+## iter: 1  value: 16224.06 mgc: 5.250774 ustep: 1 
+## iter: 2  mgc: 1.552092e-13 
+## iter: 1  mgc: 1.552092e-13 
+## outer mgc:  39.23672 
+## iter: 1  value: 16217.98 mgc: 0.9735076 ustep: 1 
+## iter: 2  mgc: 5.551115e-14 
+## iter: 1  mgc: 5.551115e-14 
+## outer mgc:  33.3489 
+## iter: 1  value: 16222.37 mgc: 3.894615 ustep: 1 
+## iter: 2  mgc: 1.370015e-13 
+## iter: 1  mgc: 1.370015e-13 
+## outer mgc:  19.95674 
+## iter: 1  value: 16224.33 mgc: 2.293129 ustep: 1 
+## iter: 2  mgc: 6.261658e-14 
+## iter: 1  mgc: 6.261658e-14 
+## outer mgc:  15.43451 
+## iter: 1  value: 16219.85 mgc: 2.52457 ustep: 1 
+## iter: 2  mgc: 8.926193e-14 
+## iter: 1  mgc: 8.926193e-14 
+## outer mgc:  15.89214 
+## iter: 1  value: 16219.55 mgc: 2.084666 ustep: 1 
+## iter: 2  mgc: 6.261658e-14 
+## iter: 1  value: 16216.58 mgc: 2.08632 ustep: 1 
+## iter: 2  mgc: 1.127987e-13 
+## iter: 1  mgc: 1.127987e-13 
+## outer mgc:  23.70359 
+## iter: 1  value: 16219.49 mgc: 4.891708 ustep: 1 
+## iter: 2  mgc: 9.148238e-14 
+## iter: 1  mgc: 9.148238e-14 
+## outer mgc:  11.72765 
+## iter: 1  value: 16221.06 mgc: 4.349649 ustep: 1 
+## iter: 2  mgc: 5.950795e-14 
+## iter: 1  mgc: 5.950795e-14 
+## outer mgc:  12.99836 
+## iter: 1  value: 16234.28 mgc: 3.953398 ustep: 1 
+## iter: 2  mgc: 1.09357e-13 
+## iter: 1  value: 16223.27 mgc: 1.109308 ustep: 1 
+## iter: 2  mgc: 6.761258e-14 
+## iter: 1  mgc: 6.761258e-14 
+## outer mgc:  30.15981 
+## iter: 1  value: 16222.51 mgc: 0.5059831 ustep: 1 
+## iter: 2  mgc: 7.01661e-14 
+## iter: 1  mgc: 7.01661e-14 
+## outer mgc:  6.752376 
+## iter: 1  value: 16220.83 mgc: 0.7401755 ustep: 1 
+## iter: 2  mgc: 9.237056e-14 
+## iter: 1  mgc: 9.237056e-14 
+## outer mgc:  1.89313 
+## iter: 1  value: 16220.69 mgc: 0.3777159 ustep: 1 
+## iter: 2  mgc: 1.019185e-13 
+## iter: 1  mgc: 1.019185e-13 
+## outer mgc:  3.716577 
+## iter: 1  value: 16220.34 mgc: 0.3901151 ustep: 1 
+## iter: 2  mgc: 7.904788e-14 
+## iter: 1  value: 16219.9 mgc: 0.4848759 ustep: 1 
+## iter: 2  mgc: 1.09468e-13 
+## iter: 1  mgc: 1.09468e-13 
+## outer mgc:  1.242708 
+## iter: 1  value: 16220.1 mgc: 0.2648425 ustep: 1 
+## iter: 2  mgc: 8.848478e-14 
+## iter: 1  mgc: 8.848478e-14 
+## outer mgc:  1.850691 
+## iter: 1  value: 16219.88 mgc: 0.1293578 ustep: 1 
+## iter: 2  mgc: 7.899237e-14 
+## iter: 1  value: 16220.01 mgc: 0.05840417 ustep: 1 
+## iter: 2  mgc: 5.817569e-14 
+## iter: 1  mgc: 5.817569e-14 
+## outer mgc:  0.629087 
+## iter: 1  value: 16220.04 mgc: 0.03909128 ustep: 1 
+## iter: 2  mgc: 9.270362e-14 
+## iter: 1  mgc: 9.270362e-14 
+## outer mgc:  0.174898 
+## iter: 1  value: 16220.06 mgc: 0.0869875 ustep: 1 
+## iter: 2  mgc: 8.648637e-14 
+## iter: 1  value: 16220.05 mgc: 0.03782873 ustep: 1 
+## iter: 2  mgc: 5.784262e-14 
+## iter: 1  mgc: 5.784262e-14 
+## outer mgc:  0.138468 
+## iter: 1  value: 16220.01 mgc: 0.01231847 ustep: 1 
+## iter: 2  mgc: 8.85958e-14 
+## iter: 1  mgc: 8.85958e-14 
+## outer mgc:  0.06648885 
+## iter: 1  mgc: 8.85958e-14
+```
+
+``` r
+print(fit$par)
+```
+
+```
+##           beta           beta  log_sigma_rec  log_sigma_rec   log_sigma_eq 
+##    0.027163427    0.004492234   -0.695004319   -0.603128325   -0.915878119 
+##   log_sigma_eq log_sigma_stat log_sigma_stat         rho_eq       rho_stat 
+##   -0.819104515   -0.848407243   -0.925952107    3.195959175    1.142557907 
+##        rho_rec 
+##    0.642763372
+```
+
+``` r
+print(model_tmb$report())
+```
+
+```
+## $Cor_rec
+##           [,1]      [,2]
+## [1,] 1.0000000 0.5407018
+## [2,] 0.5407018 1.0000000
+## 
+## $Cor_eq
+##           [,1]      [,2]
+## [1,] 1.0000000 0.9543726
+## [2,] 0.9543726 1.0000000
+## 
+## $Cor_stat
+##           [,1]      [,2]
+## [1,] 1.0000000 0.7524912
+## [2,] 0.7524912 1.0000000
+```
+
 Now we fit the INLA model.
 
 
@@ -3200,11 +4447,11 @@ summary(fit_inla)
 ##    = inla.mode, safe = FALSE, debug = debug, ", " .parent.frame = 
 ##    .parent.frame)") 
 ## Time used:
-##     Pre = 10.6, Running = 351, Post = 3.64, Total = 365 
+##     Pre = 16.1, Running = 316, Post = 3.43, Total = 336 
 ## Fixed effects:
 ##              mean    sd 0.025quant 0.5quant 0.975quant  mode kld
-## intercept_1 0.027 0.028     -0.028    0.027      0.083 0.027   0
-## intercept_2 0.005 0.031     -0.055    0.005      0.065 0.005   0
+## intercept_1 0.028 0.028     -0.028    0.028      0.083 0.028   0
+## intercept_2 0.004 0.031     -0.056    0.004      0.065 0.004   0
 ## 
 ## Random effects:
 ##   Name	  Model
@@ -3220,17 +4467,17 @@ summary(fit_inla)
 ## 
 ## Model hyperparameters:
 ##                          mean    sd 0.025quant 0.5quant 0.975quant   mode
-## Precision for recid_1   4.016 0.055      3.909    4.016      4.124  4.016
-## Precision for eqid_1    5.835 1.011      3.740    5.917      7.517  6.273
-## Precision for statid_1  5.471 0.298      4.911    5.461      6.084  5.440
-## Precision for recid_2   4.723 0.064      4.597    4.723      4.848  4.725
-## Precision for eqid_2   48.532 5.391     39.782   47.904     60.910 46.070
-## Precision for statid_2 14.830 1.063     12.727   14.840     16.902 14.945
-## Beta for recid_2_1      0.593 0.009      0.576    0.593      0.610  0.593
-## Beta for eqid_2_1       1.050 0.030      0.995    1.048      1.112  1.043
-## Beta for statid_2_1     0.700 0.027      0.644    0.701      0.751  0.705
+## Precision for recid_1   4.015 0.055      3.909    4.014      4.124  4.013
+## Precision for eqid_1    6.773 0.522      5.732    6.780      7.783  6.848
+## Precision for statid_1  5.477 0.298      4.910    5.470      6.082  5.460
+## Precision for recid_2   4.721 0.064      4.598    4.720      4.849  4.716
+## Precision for eqid_2   47.650 5.253     39.184   47.024     59.754 45.169
+## Precision for statid_2 14.840 1.105     12.611   14.869     16.935 15.061
+## Beta for recid_2_1      0.593 0.009      0.576    0.593      0.612  0.591
+## Beta for eqid_2_1       1.052 0.032      0.982    1.054      1.108  1.064
+## Beta for statid_2_1     0.697 0.027      0.647    0.697      0.752  0.694
 ## 
-## Marginal log-Likelihood:  -19380.99 
+## Marginal log-Likelihood:  -19381.55 
 ##  is computed 
 ## Posterior summaries for the linear predictor and the fitted values are computed
 ## (Posterior marginals needs also 'control.compute=list(return.marginals.predictor=TRUE)')
@@ -3247,7 +4494,7 @@ hyperpar['Precision for recid_1',par]
 ```
 
 ```
-## [1] 4.016007
+## [1] 4.014788
 ```
 
 ``` r
@@ -3413,10 +4660,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 104.1 seconds.
+## Chain 1 finished in 73.5 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 105.1 seconds.
+## Chain 2 finished in 74.3 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -3427,13 +4674,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 74.1 seconds.
+## Chain 4 finished in 67.7 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 78.1 seconds.
+## Chain 3 finished in 72.1 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 90.4 seconds.
-## Total execution time: 182.7 seconds.
+## Mean chain execution time: 71.9 seconds.
+## Total execution time: 146.1 seconds.
 ```
 
 ``` r
@@ -3441,7 +4688,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-1-810646.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-2-810646.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-3-810646.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-4-810646.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-1-81bb87.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-2-81bb87.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-3-81bb87.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-4-81bb87.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -3461,7 +4708,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-1-810646.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-2-810646.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-3-810646.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpWdidWY/gmm_partition_wvar_corr-202409041245-4-810646.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-1-81bb87.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-2-81bb87.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-3-81bb87.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-4-81bb87.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -3808,7 +5055,7 @@ fit_spamm <- fitme(y_sim ~ M1 + M2 + MlogR + logR + R + Fss + Frv + logVS + (1|e
 ```
 
 ```
-## (One-time message:) Choosing matrix methods took 3.89 s.
+## (One-time message:) Choosing matrix methods took 3.18 s.
 ##   If you perform many similarly costly fits, setting the method
 ##   by control.HLfit=list(algebra=<"spprec"|"spcorr"|"decorr">) may be useful,
 ##   see help("algebra"). "spcorr" has been selected here.
@@ -3821,11 +5068,11 @@ how(fit_spamm)[['fit_time']]
 ```
 
 ```
-## [1] "Model fitted by spaMM::fitme, version 4.4.16, in 1365.49s using sparse-correlation method for y-augmented matrix (Cholesky)."
+## [1] "Model fitted by spaMM::fitme, version 4.4.16, in 2081.2s using sparse-correlation method for y-augmented matrix (Cholesky)."
 ```
 
 ```
-## [1] 1365.49
+## [1] 2081.2
 ```
 
 Below, we plot the posterior distributions of the spatial range as well as the associated standard deviation.
@@ -4163,6 +5410,7 @@ patchwork::wrap_plots(p1,p2 + theme(legend.position = 'none'),p3,ggpubr::as_ggpl
 # Results for simulations based on CB14 data
 load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim2_heteroscedastic_coeff_CB.Rdata'))
 load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim2_heteroscedastic_coeff_stan2_CB.Rdata'))
+load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim2_heteroscedastic_coeff_tmb_CB.Rdata'))
 
 coeffs <- c(3.421046409, 0.193954090, -0.021982777, 0.287149291, -1.405635476, -0.002911264, -0.394575970)
 names_coeffs <- c("intercept", "M1", "M2", "MlogR", "logR", "R", "logVS")
@@ -4236,17 +5484,81 @@ patchwork::wrap_plots(p1 + theme(legend.position = 'none'),p2,p3,ggpubr::as_ggpl
 
 
 ``` r
+p1 <- data.frame(res_phi, res_phiss_tmb[,c(1,2)], res_phi_stan2[,c(1,2)]) %>%
+  set_names(c('sd(dWS)_lowm','sd(dWS)+unc_lowm','sd(dWS)_largem','sd(dWS)+unc_largem',
+              'stan_lowm','stan_largem','stanf_lowm','stanf_largem')) %>%
+  pivot_longer(everything(), names_to = c('model','mag'),names_sep = '_') %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = mag), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(xintercept = phi_sim_val[2], linewidth = lw) +
+  geom_vline(xintercept = phi_sim_val[1], linetype = 'dashed', linewidth = lw) +
+  scale_color_manual(values = c('orange','red','blue','cyan'),
+                     labels = c(TeX("sd(\\widehat{\\delta WS})"),
+                                TeX("sd(\\widehat{\\delta WS} + unc)"),
+                                'tmb (full)', 'stan (full)')) +
+  scale_linetype_manual(values = c(1,2),
+                        labels = c(TeX(sprintf("$M \\geq %.1f$",mb_phi[2])), 
+                                   TeX(sprintf("$M \\leq %.1f$",mb_phi[1])))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.5,0.8),
+        legend.key.width = unit(2,'cm')) +
+  labs(x = expression(paste(widehat(phi)[SS]))) +
+  lims(y = c(0,100))
+
+p2 <- data.frame(res_tau, res_tau_tmb[,c(1,2)], res_tau_stan2[,c(1,2)]) %>%
+  set_names(c('sd(dB)_lowm','sd(dB)+unc_lowm','sd(dB)_largem','sd(dB)+unc_largem',
+              'stan_lowm','stan_largem','stanf_lowm','stanf_largem')) %>%
+  pivot_longer(everything(), names_to = c('model','mag'),names_sep = '_') %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = mag), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(xintercept = tau_sim_val[2], linewidth = lw) +
+  geom_vline(xintercept = tau_sim_val[1], linetype = 'dashed', linewidth = lw) +
+  scale_color_manual(values = c('orange','red','blue','cyan'),
+                     labels = c(TeX("sd(\\widehat{\\delta B})"),
+                                TeX("sd(\\widehat{\\delta B} + unc)"),
+                                'tmb (full)', 'stan (full)')) +
+  scale_linetype_manual(values = c(1,2),
+                        labels = c(TeX(sprintf("$M \\geq %.1f$",mb_tau[2])), 
+                                   TeX(sprintf("$M \\leq %.1f$",mb_tau[1])))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = 'none') +
+  labs(x = expression(paste(widehat(tau))))
+
+p3 <- data.frame(res_phis2s[,1], res_phis2s_tmb[,1], res_phis2s_stan2[,1]) %>%
+  set_names(c('lmer','stan','stanf')) %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(xintercept = phi_s2s_sim, linewidth = lw) +
+  scale_color_manual(values = c('red','blue','cyan'),
+                     labels = c('lmer', 'tmb (full)', 'stan (full')) +
+  guides(color = guide_legend(title = NULL)) +
+  theme(legend.position = 'none') +
+  labs(x = expression(paste(widehat(phi)[S2S])))
+
+leg <- ggpubr::get_legend(p1)
+patchwork::wrap_plots(p1 + theme(legend.position = 'none'),p2,p3,ggpubr::as_ggplot(leg), ncol = 2)
+```
+
+<img src="pictures/res-sim2-hs-all-plots-tmb-1.png" width="100%" />
+
+
+``` r
 df1 <- data.frame(res_coeffs) %>% set_names(names_coeffs)
 df1$model <- 'lmer'
 
 df2 <- data.frame(res_coeffs_stan2) %>% set_names(names_coeffs)
 df2$model <- 'stan'
 
+df3 <- data.frame(res_coeffs_tmb) %>% set_names(names_coeffs)
+df3$model <- 'tmb'
+
 df <- data.frame(name = names_coeffs,
                 true = coeffs)
 
 rbind(df1 %>% pivot_longer(!model),
-      df2 %>% pivot_longer(!model)) %>%
+      df2 %>% pivot_longer(!model),
+      df3 %>% pivot_longer(!model)) %>%
   ggplot() +
   geom_density(aes(x = value, color = model), linewidth = 1.5, key_glyph = draw_key_path) +
   facet_wrap(vars(name), scales = "free") +

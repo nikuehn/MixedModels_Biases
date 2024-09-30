@@ -77,6 +77,7 @@ library(bayesplot)
 library(tidyverse)
 library(INLA)
 library(spaMM)
+library(TMB)
 library(matrixStats)
 library(latex2exp)
 ```
@@ -348,6 +349,53 @@ data.frame(inla = sd_deltaWS_inla,
   labs(x = TeX("$\\psi(\\widehat{\\delta WS}_{inla})$"),
        y = TeX("$\\psi(\\widehat{\\delta WS})$")) +
   guides(color = guide_legend(title=NULL))
+```
+
+We now plot the event terms and single-site residuals against magnitude, and the site terms against $V_{S30}$.
+We also plot the uncertainties.
+For simplicity, we plot only the results from the INLA fit.
+Plotting the uncertainties allows one to better gauge whether there is possible heteroscedasticity.
+
+``` {r example-plot-re-unc, out.width = '100%', fig.width=16}
+mageq <- unique(data_it[,c('EQID','mag')])[,2]
+vsstat <- unique(data_it[,c('STATID','vs30')])[,2]
+
+p1 <- data.frame(M = mageq, 
+           dB = fit_inla$summary.random$eq$mean,
+           low = fit_inla$summary.random$eq[,'0.05quant'],
+           high = fit_inla$summary.random$eq[,'0.95quant']
+           ) %>%
+  ggplot(aes(x = M)) +
+  geom_point(aes(y = dB), size = sp) +
+  geom_linerange(aes(ymin = low, ymax = high), linewidth = 1.5) +
+  labs(y = TeX("$\\widehat{\\delta B}$")) +
+  lims(y = c(-0.5,0.5))
+
+
+p2 <- data.frame(M = data_it$mag, 
+           dWS = data_reg$Y - fit_inla$summary.fitted.values$mean,
+           low = data_reg$Y - fit_inla$summary.fitted.values[,'0.05quant'],
+           high = data_reg$Y - fit_inla$summary.fitted.values[,'0.95quant']
+) %>%
+  ggplot(aes(x = M)) +
+  geom_point(aes(y = dWS), size = sp) +
+  geom_linerange(aes(ymin = low, ymax = high), linewidth = 1.5) +
+  labs(y = TeX("$\\widehat{\\delta WS}$")) +
+  lims(y = c(-1.05,1.05))
+
+
+p3 <- data.frame(VS = vsstat, 
+           dS = fit_inla$summary.random$stat$mean,
+           low = fit_inla$summary.random$stat[,'0.05quant'],
+           high = fit_inla$summary.random$stat[,'0.95quant']
+) %>%
+  ggplot(aes(x = VS)) +
+  geom_point(aes(y = dS), size = sp) +
+  geom_linerange(aes(ymin = low, ymax = high), linewidth = 1.5) +
+  labs(y = TeX("$\\widehat{\\delta S}$"), x = TeX("$V_{S30}$")) +
+  scale_x_log10(breaks = breaks, minor_breaks = minor_breaks)
+
+patchwork::wrap_plots(p1, p2, p3, ncol = 2)
 ```
 
 We now calculate the conditional standard deviations of the random effects from the `lmer` fit according to Equation (3) of the paper, which makes use of the design matrix of the random effects $\mathbf{Z}$, and the relative covariance factor $\mathbf{\Lambda}$.
@@ -903,8 +951,40 @@ summarise_draws(subset(draws_part, variable = c('ic','phi','tau'), regex = TRUE)
 In general, the parameters are well estimated.
 There are not that many events for $M \geq 6$, so the value of $\tau_2$ is quite uncertain.
 
-In the following, we run a Stan model which estimates coefficients and magitude-dependent standard deviations at the same time.
-To improve sampling, we use the QR-decomposition of the desgn matrix.
+It is also possible to estimate a mixed-effects model with heteroscedastic standard deviations using the `TMB` pacakge [@Kristensen2016].
+For `TMB`, the model is defined in a C++ file, which returns the negative log-likelihood, which can then be minimized.
+
+``` {r sim2-hs-tmb-part-run}
+compile(file.path('./Git/MixedModels_Biases/', 'tmb', "linear_mixed_model_tauM_phiM.cpp"))
+dyn.load(dynlib(file.path('./Git/MixedModels_Biases/', 'tmb', "linear_mixed_model_tauM_phiM")))
+
+
+data_list <- list(Y = as.numeric(dR_lmer), eq= eq - 1, stat = stat - 1,
+                  M1_eq=m1_eq, M2_eq =m2_eq, M1_rec = m1_rec, M2_rec = m2_rec)
+# starting values
+parameters <- list(
+  u_eq = rep(0, n_eq),    # Random effects for eq
+  u_stat = rep(0, n_stat),# Random effects for stat
+  beta = 0,
+  log_phi_ss_sm = 0,
+  log_phi_ss_lm = 0,
+  log_tau_sm = 0,
+  log_tau_lm = 0,
+  log_phi_s2s = 0
+)
+# Create TMB object
+model_tmb <- MakeADFun(data = data_list, parameters = parameters, random = c("u_eq", "u_stat"), 
+                       DLL = "linear_mixed_model_tauM_phiM")
+
+fit_tmb <- nlminb(model_tmb$par, model_tmb$fn, model_tmb$gr)
+print(fit_tmb$par)
+print(model_tmb$report())
+```
+
+The standard deviations are reasonably well estimated, with values similar to the ones from the stan fit.
+
+In the following, we run a Stan model which estimates coefficients and magnitude-dependent standard deviations at the same time.
+To improve sampling, we use the QR-decomposition of the design matrix.
 
 ``` {r sim2-hs-stan-full, cache = TRUE}
 mod <- cmdstan_model(file.path('./Git/MixedModels_Biases/', 'stan', 'gmm_full_qr_tauM_phiM.stan'))
@@ -949,7 +1029,8 @@ summarise_draws(subset(draws_full, variable = c('^c\\['), regex = TRUE))
 The standard deviations are well estimated (very similar to the values based on partitioning the total residuals from the `lmer` fit), and the coefficients are also well estimated.
 
 
-Below, we plot the posterior distribution of $\tau_1$ and $\tau_2$, together with the true value (black) and the value estimated from point estimates of the event terms in the respective magnitude bins (red), with (solid) and without (dashed) uncertainty.
+Below, we plot the posterior distribution of $\tau_1$ and $\tau_2$, together with the true value (black) and the value estimated from point estimates of the event terms in the respective magnitude bins (red), with (dashed) and without (solid) uncertainty.
+The values estimated by TMB are shown as blue vertical lines.
 
 ``` {r sim2-hs-plot-tau, out.width = '100%', fig.width=16}
 tmp <- mageq <= mb_tau[1]
@@ -963,7 +1044,8 @@ p1 <- data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'tau_1', re
   geom_density(aes(x = value, color = name), linewidth = 1.5, key_glyph = draw_key_path) +
   geom_vline(xintercept = tau_sim_val[1], linewidth = 1.5) +
   geom_vline(xintercept = sd(dB_lmer[mageq <= mb_tau[1]]), linewidth = 1.5, color = 'red') +
-  geom_vline(xintercept = tmp, , linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  geom_vline(xintercept = tmp, linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  geom_vline(xintercept = model_tmb$report()$tau_sm, linewidth = 1.5, color = 'blue') +
   guides(color = guide_legend(title = NULL)) +
   theme(legend.position = c(0.8,0.8)) +
   xlab('tau_1')
@@ -981,6 +1063,7 @@ p2 <- data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'tau_2', re
   geom_vline(xintercept = tau_sim_val[2], linewidth = 1.5) +
   geom_vline(xintercept = sd(dB_lmer[mageq >= mb_tau[2]]), linewidth = 1.5, color = 'red') +
   geom_vline(xintercept = tmp, , linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  geom_vline(xintercept = model_tmb$report()$tau_lm, linewidth = 1.5, color = 'blue') +
   guides(color = guide_legend(title = NULL)) +
   theme(legend.position = c(0.8,0.8)) +
   xlab('tau_2')
@@ -1006,6 +1089,7 @@ p1 <- data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_ss_1',
   geom_vline(xintercept = phi_ss_sim_val[1], linewidth = 1.5) +
   geom_vline(xintercept = sd(dWS_lmer[data_reg$M <= mb_phi[1]]), linewidth = 1.5, color = 'red') +
   geom_vline(xintercept = tmp, linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  geom_vline(xintercept = model_tmb$report()$phi_ss_sm, linewidth = 1.5, color = 'blue') +
   guides(color = guide_legend(title = NULL)) +
   theme(legend.position = c(0.8,0.8)) +
   xlab('phi_ss_1')
@@ -1023,6 +1107,7 @@ p2 <- data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_ss_2',
   geom_vline(xintercept = phi_ss_sim_val[2], linewidth = 1.5) +
   geom_vline(xintercept = sd(dWS_lmer[data_reg$M >= mb_phi[2]]), linewidth = 1.5, color = 'red') +
   geom_vline(xintercept = tmp, linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  geom_vline(xintercept = model_tmb$report()$phi_ss_lm, linewidth = 1.5, color = 'blue') +
   guides(color = guide_legend(title = NULL)) +
   theme(legend.position = c(0.8,0.8)) +
   xlab('phi_ss_2')
@@ -1043,6 +1128,7 @@ data.frame(dR = subset(as_draws_matrix(draws_part), variable = 'phi_s2s', regex 
   geom_vline(xintercept = sd(dS_lmer), linewidth = 1.5, color = 'red') +
   geom_vline(xintercept = sqrt((sum(dS_lmer^2) + sum(sd_dS_lmer^2)) / n_stat),
              linewidth = 1.5, color = 'red', linetype = 'dashed') +
+  geom_vline(xintercept = model_tmb$report()$phi_s2s, linewidth = 1.5, color = 'blue') +
   guides(color = guide_legend(title = NULL)) +
   theme(legend.position = c(0.3,0.8)) +
   xlab('phi_S2S')
@@ -1661,6 +1747,35 @@ vars <- c(1/hyperpar['Precision for statid_1',par],
 rho_stat_inla <- cov2cor(fm %*% diag(vars) %*% t(fm))[1,2]
 ```
 
+It is also possible to use TMB to fit a multivariate mixed-effects model.
+
+``` {r sim2-corr-tmb}
+compile(file.path('./Git/MixedModels_Biases/', 'tmb', "mv_mixed_model.cpp"))
+dyn.load(dynlib(file.path('./Git/MixedModels_Biases/', 'tmb', "mv_mixed_model")))
+
+data_list <- list(Y = cbind(data_reg$y_sim1, data_reg$y_sim2), eq= eq - 1, stat = stat - 1)
+parameters <- list(
+  u_eq = matrix(0, nrow = n_eq, ncol = 2),    # Random effects for eq
+  u_stat = matrix(0, nrow = n_stat, ncol = 2),# Random effects for stat
+  beta = rep(0,2),                                # Intercept
+  log_sigma_rec = rep(0,2),                       # Log residual standard deviation
+  log_sigma_eq = rep(0,2),                        # Log eq standard deviation
+  log_sigma_stat = rep(0,2),                      # Log stat standard deviation
+  rho_eq = 0,
+  rho_stat=0,
+  rho_rec = 0
+)
+
+model_tmb <- MakeADFun(data = data_list, parameters = parameters, random = c("u_eq", "u_stat"), 
+                       DLL = "mv_mixed_model")
+
+fit <- nlminb(model_tmb$par, model_tmb$fn, model_tmb$gr)
+print(fit$par)
+print(model_tmb$report())
+```
+
+The estimated correlations look good.
+
 Below we look at the posterior distributions of the estimated correlations.
 The vertical black line is the true value, and the solid red line is the value estimated from the randomeffects ore residuals.
 The dashed lines are the 90% confidence limits, estimated using Fisher's z-transformation [@Fisher1915].
@@ -1841,6 +1956,33 @@ draws <- fit_stan$draws()
 rv <- as_draws_rvars(draws)
 
 summarise_draws(subset(draws, variable = c('tau','phi','rho'), regex = TRUE))
+```
+
+Now we fit the TMB model.
+
+``` {r sim2-corr-tmb2}
+compile(file.path('./Git/MixedModels_Biases/', 'tmb', "mv_mixed_model.cpp"))
+dyn.load(dynlib(file.path('./Git/MixedModels_Biases/', 'tmb', "mv_mixed_model")))
+
+data_list <- list(Y = cbind(data_reg$y_sim1, data_reg$y_sim2), eq= eq - 1, stat = stat - 1)
+parameters <- list(
+  u_eq = matrix(0, nrow = n_eq, ncol = 2),    # Random effects for eq
+  u_stat = matrix(0, nrow = n_stat, ncol = 2),# Random effects for stat
+  beta = rep(0,2),                                # Intercept
+  log_sigma_rec = rep(0,2),                       # Log residual standard deviation
+  log_sigma_eq = rep(0,2),                        # Log eq standard deviation
+  log_sigma_stat = rep(0,2),                      # Log stat standard deviation
+  rho_eq = 0,
+  rho_stat=0,
+  rho_rec = 0
+)
+
+model_tmb <- MakeADFun(data = data_list, parameters = parameters, random = c("u_eq", "u_stat"), 
+                       DLL = "mv_mixed_model")
+
+fit <- nlminb(model_tmb$par, model_tmb$fn, model_tmb$gr)
+print(fit$par)
+print(model_tmb$report())
 ```
 
 Now we fit the INLA model.
@@ -2608,6 +2750,7 @@ patchwork::wrap_plots(p1,p2 + theme(legend.position = 'none'),p3,ggpubr::as_ggpl
 # Results for simulations based on CB14 data
 load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim2_heteroscedastic_coeff_CB.Rdata'))
 load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim2_heteroscedastic_coeff_stan2_CB.Rdata'))
+load(file = file.path('./Git/MixedModels_Biases/', 'results', 'results_sim2_heteroscedastic_coeff_tmb_CB.Rdata'))
 
 coeffs <- c(3.421046409, 0.193954090, -0.021982777, 0.287149291, -1.405635476, -0.002911264, -0.394575970)
 names_coeffs <- c("intercept", "M1", "M2", "MlogR", "logR", "R", "logVS")
@@ -2676,6 +2819,63 @@ leg <- ggpubr::get_legend(p1)
 patchwork::wrap_plots(p1 + theme(legend.position = 'none'),p2,p3,ggpubr::as_ggplot(leg), ncol = 2)
 ```
 
+``` {r res-sim2-hs-all-plots-tmb, out.width = '100%'}
+p1 <- data.frame(res_phi, res_phiss_tmb[,c(1,2)], res_phi_stan2[,c(1,2)]) %>%
+  set_names(c('sd(dWS)_lowm','sd(dWS)+unc_lowm','sd(dWS)_largem','sd(dWS)+unc_largem',
+              'stan_lowm','stan_largem','stanf_lowm','stanf_largem')) %>%
+  pivot_longer(everything(), names_to = c('model','mag'),names_sep = '_') %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = mag), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(xintercept = phi_sim_val[2], linewidth = lw) +
+  geom_vline(xintercept = phi_sim_val[1], linetype = 'dashed', linewidth = lw) +
+  scale_color_manual(values = c('orange','red','blue','cyan'),
+                     labels = c(TeX("sd(\\widehat{\\delta WS})"),
+                                TeX("sd(\\widehat{\\delta WS} + unc)"),
+                                'tmb (full)', 'stan (full)')) +
+  scale_linetype_manual(values = c(1,2),
+                        labels = c(TeX(sprintf("$M \\geq %.1f$",mb_phi[2])), 
+                                   TeX(sprintf("$M \\leq %.1f$",mb_phi[1])))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = c(0.5,0.8),
+        legend.key.width = unit(2,'cm')) +
+  labs(x = expression(paste(widehat(phi)[SS]))) +
+  lims(y = c(0,100))
+
+p2 <- data.frame(res_tau, res_tau_tmb[,c(1,2)], res_tau_stan2[,c(1,2)]) %>%
+  set_names(c('sd(dB)_lowm','sd(dB)+unc_lowm','sd(dB)_largem','sd(dB)+unc_largem',
+              'stan_lowm','stan_largem','stanf_lowm','stanf_largem')) %>%
+  pivot_longer(everything(), names_to = c('model','mag'),names_sep = '_') %>%
+  ggplot() +
+  geom_density(aes(x = value, color = model, linetype = mag), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(xintercept = tau_sim_val[2], linewidth = lw) +
+  geom_vline(xintercept = tau_sim_val[1], linetype = 'dashed', linewidth = lw) +
+  scale_color_manual(values = c('orange','red','blue','cyan'),
+                     labels = c(TeX("sd(\\widehat{\\delta B})"),
+                                TeX("sd(\\widehat{\\delta B} + unc)"),
+                                'tmb (full)', 'stan (full)')) +
+  scale_linetype_manual(values = c(1,2),
+                        labels = c(TeX(sprintf("$M \\geq %.1f$",mb_tau[2])), 
+                                   TeX(sprintf("$M \\leq %.1f$",mb_tau[1])))) +
+  guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
+  theme(legend.position = 'none') +
+  labs(x = expression(paste(widehat(tau))))
+
+p3 <- data.frame(res_phis2s[,1], res_phis2s_tmb[,1], res_phis2s_stan2[,1]) %>%
+  set_names(c('lmer','stan','stanf')) %>%
+  pivot_longer(everything()) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = name), linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(xintercept = phi_s2s_sim, linewidth = lw) +
+  scale_color_manual(values = c('red','blue','cyan'),
+                     labels = c('lmer', 'tmb (full)', 'stan (full')) +
+  guides(color = guide_legend(title = NULL)) +
+  theme(legend.position = 'none') +
+  labs(x = expression(paste(widehat(phi)[S2S])))
+
+leg <- ggpubr::get_legend(p1)
+patchwork::wrap_plots(p1 + theme(legend.position = 'none'),p2,p3,ggpubr::as_ggplot(leg), ncol = 2)
+```
+
 ``` {r res-sim2-hs-all-plots-coeffs, out.width = '100%'}
 df1 <- data.frame(res_coeffs) %>% set_names(names_coeffs)
 df1$model <- 'lmer'
@@ -2683,11 +2883,15 @@ df1$model <- 'lmer'
 df2 <- data.frame(res_coeffs_stan2) %>% set_names(names_coeffs)
 df2$model <- 'stan'
 
+df3 <- data.frame(res_coeffs_tmb) %>% set_names(names_coeffs)
+df3$model <- 'tmb'
+
 df <- data.frame(name = names_coeffs,
                 true = coeffs)
 
 rbind(df1 %>% pivot_longer(!model),
-      df2 %>% pivot_longer(!model)) %>%
+      df2 %>% pivot_longer(!model),
+      df3 %>% pivot_longer(!model)) %>%
   ggplot() +
   geom_density(aes(x = value, color = model), linewidth = 1.5, key_glyph = draw_key_path) +
   facet_wrap(vars(name), scales = "free") +
