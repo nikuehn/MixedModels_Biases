@@ -1,7 +1,7 @@
 ---
 title: "Biases in Mixed-Effects Model GMMs"
 author: "Nicolas Kuehn, Ken Campbell, Yousef Bozorgnia"
-date: "30 September, 2024, first published 14 September 2023."
+date: "09 October, 2024, first published 14 September 2023."
 output:
   html_document:
     keep_md: true
@@ -769,6 +769,29 @@ patchwork::wrap_plots(p1, p2)
 ```
 
 <img src="pictures/read-data-cb-1.png" width="100%" />
+
+We now plot the number of records per event and station.
+
+
+``` r
+p1 <- data_reg[,c('M','eq')] %>% dplyr::count(eq) %>%
+  ggplot() +
+  geom_histogram(aes(x = n)) +
+  labs(x = '# records per event')
+
+p2 <- data_reg[,c('M','stat')] %>% dplyr::count(stat) %>%
+  ggplot() +
+  geom_histogram(aes(x = n)) +
+  labs(x = '# records per station')
+patchwork::wrap_plots(p1, p2)
+```
+
+```
+## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+```
+
+<img src="pictures/data-cb-nrec-1.png" width="100%" />
 
 
 ``` r
@@ -3089,7 +3112,7 @@ summary(fit_inla)
 ##    = inla.mode, safe = FALSE, debug = debug, ", " .parent.frame = 
 ##    .parent.frame)") 
 ## Time used:
-##     Pre = 9.55, Running = 327, Post = 3.33, Total = 340 
+##     Pre = 10.2, Running = 781, Post = 1.69, Total = 792 
 ## Fixed effects:
 ##              mean    sd 0.025quant 0.5quant 0.975quant  mode kld
 ## intercept_1 0.025 0.028     -0.030    0.025      0.079 0.025   0
@@ -3109,12 +3132,12 @@ summary(fit_inla)
 ## 
 ## Model hyperparameters:
 ##                          mean    sd 0.025quant 0.5quant 0.975quant   mode
-## Precision for recid_1   4.017 0.061      3.887    4.021      4.124  4.039
-## Precision for eqid_1    7.068 0.526      6.001    7.081      8.064  7.180
-## Precision for statid_1  5.750 0.261      5.215    5.758      6.243  5.804
+## Precision for recid_1   4.017 0.061      3.887    4.021      4.124  4.038
+## Precision for eqid_1    7.065 0.526      5.998    7.078      8.062  7.176
+## Precision for statid_1  5.751 0.261      5.216    5.759      6.243  5.805
 ## Precision for recid_2  17.332 0.199     16.978   17.319     17.760 17.268
-## Precision for eqid_2   40.823 3.589     35.270   40.353     49.254 38.711
-## Precision for statid_2 20.102 1.905     15.979   20.305     23.184 21.286
+## Precision for eqid_2   40.836 3.590     35.281   40.366     49.270 38.724
+## Precision for statid_2 20.082 1.919     15.928   20.287     23.181 21.276
 ## Beta for recid_2_1      0.989 0.005      0.978    0.989      0.998  0.991
 ## Beta for eqid_2_1       1.023 0.023      0.982    1.022      1.072  1.016
 ## Beta for statid_2_1     0.765 0.020      0.726    0.765      0.804  0.765
@@ -3136,7 +3159,7 @@ hyperpar['Precision for recid_1',par]
 ```
 
 ```
-## [1] 4.016748
+## [1] 4.016737
 ```
 
 ``` r
@@ -4447,7 +4470,7 @@ summary(fit_inla)
 ##    = inla.mode, safe = FALSE, debug = debug, ", " .parent.frame = 
 ##    .parent.frame)") 
 ## Time used:
-##     Pre = 16.1, Running = 316, Post = 3.43, Total = 336 
+##     Pre = 6.58, Running = 4720, Post = 3.52, Total = 4730 
 ## Fixed effects:
 ##              mean    sd 0.025quant 0.5quant 0.975quant  mode kld
 ## intercept_1 0.028 0.028     -0.028    0.028      0.083 0.028   0
@@ -4467,17 +4490,17 @@ summary(fit_inla)
 ## 
 ## Model hyperparameters:
 ##                          mean    sd 0.025quant 0.5quant 0.975quant   mode
-## Precision for recid_1   4.015 0.055      3.909    4.014      4.124  4.013
-## Precision for eqid_1    6.773 0.522      5.732    6.780      7.783  6.848
-## Precision for statid_1  5.477 0.298      4.910    5.470      6.082  5.460
-## Precision for recid_2   4.721 0.064      4.598    4.720      4.849  4.716
-## Precision for eqid_2   47.650 5.253     39.184   47.024     59.754 45.169
-## Precision for statid_2 14.840 1.105     12.611   14.869     16.935 15.061
+## Precision for recid_1   4.016 0.055      3.908    4.016      4.123  4.017
+## Precision for eqid_1    6.778 0.522      5.736    6.785      7.788  6.854
+## Precision for statid_1  5.477 0.298      4.909    5.471      6.081  5.463
+## Precision for recid_2   4.723 0.064      4.595    4.724      4.847  4.727
+## Precision for eqid_2   47.603 5.247     39.156   46.976     59.699 45.112
+## Precision for statid_2 14.845 1.104     12.620   14.875     16.939 15.064
 ## Beta for recid_2_1      0.593 0.009      0.576    0.593      0.612  0.591
-## Beta for eqid_2_1       1.052 0.032      0.982    1.054      1.108  1.064
-## Beta for statid_2_1     0.697 0.027      0.647    0.697      0.752  0.694
+## Beta for eqid_2_1       1.051 0.034      0.978    1.054      1.109  1.066
+## Beta for statid_2_1     0.697 0.027      0.647    0.696      0.752  0.693
 ## 
-## Marginal log-Likelihood:  -19381.55 
+## Marginal log-Likelihood:  -19381.61 
 ##  is computed 
 ## Posterior summaries for the linear predictor and the fitted values are computed
 ## (Posterior marginals needs also 'control.compute=list(return.marginals.predictor=TRUE)')
@@ -4494,7 +4517,7 @@ hyperpar['Precision for recid_1',par]
 ```
 
 ```
-## [1] 4.014788
+## [1] 4.015872
 ```
 
 ``` r
@@ -4660,10 +4683,10 @@ fit <- mod$sample(
 ## Chain 1 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 2 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 1 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 1 finished in 73.5 seconds.
+## Chain 1 finished in 100.6 seconds.
 ## Chain 3 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 2 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 2 finished in 74.3 seconds.
+## Chain 2 finished in 101.4 seconds.
 ## Chain 4 Iteration:   1 / 400 [  0%]  (Warmup) 
 ## Chain 4 Iteration: 100 / 400 [ 25%]  (Warmup) 
 ## Chain 3 Iteration: 100 / 400 [ 25%]  (Warmup) 
@@ -4674,13 +4697,13 @@ fit <- mod$sample(
 ## Chain 4 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 3 Iteration: 300 / 400 [ 75%]  (Sampling) 
 ## Chain 4 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 4 finished in 67.7 seconds.
+## Chain 4 finished in 73.9 seconds.
 ## Chain 3 Iteration: 400 / 400 [100%]  (Sampling) 
-## Chain 3 finished in 72.1 seconds.
+## Chain 3 finished in 80.5 seconds.
 ## 
 ## All 4 chains finished successfully.
-## Mean chain execution time: 71.9 seconds.
-## Total execution time: 146.1 seconds.
+## Mean chain execution time: 89.1 seconds.
+## Total execution time: 181.4 seconds.
 ```
 
 ``` r
@@ -4688,7 +4711,7 @@ print(fit$cmdstan_diagnose())
 ```
 
 ```
-## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-1-81bb87.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-2-81bb87.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-3-81bb87.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-4-81bb87.csv
+## Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAuU7UZ/gmm_partition_wvar_corr-202410091956-1-80d447.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAuU7UZ/gmm_partition_wvar_corr-202410091956-2-80d447.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAuU7UZ/gmm_partition_wvar_corr-202410091956-3-80d447.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAuU7UZ/gmm_partition_wvar_corr-202410091956-4-80d447.csv
 ## 
 ## Checking sampler transitions treedepth.
 ## Treedepth satisfactory for all transitions.
@@ -4708,7 +4731,7 @@ print(fit$cmdstan_diagnose())
 ## [1] 0
 ## 
 ## $stdout
-## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-1-81bb87.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-2-81bb87.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-3-81bb87.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpFUdP6t/gmm_partition_wvar_corr-202409301447-4-81bb87.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
+## [1] "Processing csv files: /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAuU7UZ/gmm_partition_wvar_corr-202410091956-1-80d447.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAuU7UZ/gmm_partition_wvar_corr-202410091956-2-80d447.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAuU7UZ/gmm_partition_wvar_corr-202410091956-3-80d447.csv, /var/folders/p3/r7vrsk6n2d15709vgcky_y880000gn/T/RtmpAuU7UZ/gmm_partition_wvar_corr-202410091956-4-80d447.csv\n\nChecking sampler transitions treedepth.\nTreedepth satisfactory for all transitions.\n\nChecking sampler transitions for divergences.\nNo divergent transitions found.\n\nChecking E-BFMI - sampler transitions HMC potential energy.\nE-BFMI satisfactory.\n\nEffective sample size satisfactory.\n\nSplit R-hat values satisfactory all parameters.\n\nProcessing complete, no problems detected.\n"
 ## 
 ## $stderr
 ## [1] ""
@@ -4851,6 +4874,28 @@ patchwork::wrap_plots(p1, p2)
 ```
 
 <img src="pictures/italy-data-plots-1.png" width="100%" />
+
+
+``` r
+p1 <- data_it %>% dplyr::count(EQID) %>%
+  ggplot() +
+  geom_histogram(aes(x = n)) +
+  labs(x = '# records per event')
+
+p2 <- data_it %>% dplyr::count(STATID) %>%
+  ggplot() +
+  geom_histogram(aes(x = n)) +
+  labs(x = '# records per station')
+patchwork::wrap_plots(p1, p2)
+```
+
+```
+## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+```
+
+<img src="pictures/data-it-nrec-1.png" width="100%" />
+
 We simulate data for some spatial models on the Italian data, and we use INLA (<https://www.r-inla.org/>) to estimate the models.
 Below, we set the penalized complexity prior [@Simpson2017] for the standard deviations, used throughout.
 
@@ -5055,7 +5100,7 @@ fit_spamm <- fitme(y_sim ~ M1 + M2 + MlogR + logR + R + Fss + Frv + logVS + (1|e
 ```
 
 ```
-## (One-time message:) Choosing matrix methods took 3.18 s.
+## (One-time message:) Choosing matrix methods took 4.93 s.
 ##   If you perform many similarly costly fits, setting the method
 ##   by control.HLfit=list(algebra=<"spprec"|"spcorr"|"decorr">) may be useful,
 ##   see help("algebra"). "spcorr" has been selected here.
@@ -5068,11 +5113,11 @@ how(fit_spamm)[['fit_time']]
 ```
 
 ```
-## [1] "Model fitted by spaMM::fitme, version 4.4.16, in 2081.2s using sparse-correlation method for y-augmented matrix (Cholesky)."
+## [1] "Model fitted by spaMM::fitme, version 4.4.16, in 2667.41s using sparse-correlation method for y-augmented matrix (Cholesky)."
 ```
 
 ```
-## [1] 2081.2
+## [1] 2667.41
 ```
 
 Below, we plot the posterior distributions of the spatial range as well as the associated standard deviation.

@@ -553,6 +553,21 @@ p2 <- ggplot(unique(data_reg[,c('eqid','M')])) +
 patchwork::wrap_plots(p1, p2)
 ```
 
+We now plot the number of records per event and station.
+
+``` {r data-cb-nrec, out.width = '100%', fig.width=16}
+p1 <- data_reg[,c('M','eq')] %>% dplyr::count(eq) %>%
+  ggplot() +
+  geom_histogram(aes(x = n)) +
+  labs(x = '# records per event')
+
+p2 <- data_reg[,c('M','stat')] %>% dplyr::count(stat) %>%
+  ggplot() +
+  geom_histogram(aes(x = n)) +
+  labs(x = '# records per station')
+patchwork::wrap_plots(p1, p2)
+```
+
 ```{r prepare-data-cb}
 n_rec <- nrow(data_reg)
 n_eq <- max(data_reg$eq)
@@ -2271,6 +2286,20 @@ p2 <- ggplot(unique(data_it[,c('EQID','mag')])) +
   geom_histogram(aes(x = mag))
 patchwork::wrap_plots(p1, p2)
 ```
+
+``` {r data-it-nrec, out.width = '100%', fig.width=16}
+p1 <- data_it %>% dplyr::count(EQID) %>%
+  ggplot() +
+  geom_histogram(aes(x = n)) +
+  labs(x = '# records per event')
+
+p2 <- data_it %>% dplyr::count(STATID) %>%
+  ggplot() +
+  geom_histogram(aes(x = n)) +
+  labs(x = '# records per station')
+patchwork::wrap_plots(p1, p2)
+```
+
 We simulate data for some spatial models on the Italian data, and we use INLA (<https://www.r-inla.org/>) to estimate the models.
 Below, we set the penalized complexity prior [@Simpson2017] for the standard deviations, used throughout.
 
