@@ -753,7 +753,7 @@ p1 <- data.frame(res_cell[,c(4,10,6)]) %>% set_names(c('full','dR','dWS')) %>%
   ggplot() +
   geom_density(aes(x = value, color = name, linetype = name), linewidth = 1.5, key_glyph = draw_key_path) +
   geom_vline(aes(xintercept = sigma_cell), linewidth = 1.5) +
-  labs(x = expression(paste(sigma[cell]))) +
+  labs(x = TeX('$\\hat{\\sigma}_{cell}$')) +
   theme(legend.position = c(0.5,0.85),
         legend.key.width = unit(3, "cm")) +
   guides(color = guide_legend(title=NULL)) +
@@ -769,7 +769,7 @@ p2 <- data.frame(res_cell_fix[,c(1,7,4)]) %>% set_names(c('full','dR','dWS')) %>
   ggplot() +
   geom_density(aes(x = value, color = name, linetype = name), linewidth = lw, key_glyph = draw_key_path) +
   geom_vline(aes(xintercept = coeffs[6]), linewidth = lw) +
-  labs(x = expression(paste(c[attn]))) +
+  labs(x = TeX('$\\hat{c}_{attn}$')) +
   theme(legend.position = 'none') +
   guides(color = guide_legend(title=NULL)) +
   scale_color_manual(values = c('red','orange','blue'),
@@ -877,7 +877,7 @@ make_plot_cor <- function(plot_name, cor_name) {
       ggplot() +
       geom_density(aes(x = value, color = name, linetype = name), linewidth = lw, key_glyph = draw_key_path) +
       geom_vline(xintercept = rho_s2s, linewidth = lw) +
-      labs(x = TeX('$\\rho(\\delta S_1, \\delta S_2)$')) +
+      labs(x = TeX('$\\hat{\\rho}(\\delta S_1, \\delta S_2)$')) +
       scale_color_manual(values = c('blue','red','gray'),
                          labels = c('2-step lmer', '1-step stan', 'sim'),
                          name = NULL) +
@@ -894,7 +894,7 @@ make_plot_cor <- function(plot_name, cor_name) {
       ggplot() +
       geom_density(aes(x = value, color = name, linetype = name), linewidth = lw, key_glyph = draw_key_path) +
       geom_vline(xintercept = rho_tau, linewidth = lw) +
-      labs(x = TeX('$\\rho(\\delta B_1, \\delta B_2)$')) +
+      labs(x = TeX('$\\hat{\\rho}(\\delta B_1, \\delta B_2)$')) +
       scale_color_manual(values = c('blue','red','gray'),
                          labels = c('2-step lmer', '1-step stan', 'sim'),
                          name = NULL) +
@@ -913,7 +913,7 @@ make_plot_cor <- function(plot_name, cor_name) {
                    mapping = aes(x = x), color = 'gray', linewidth = lw) +
       geom_density(aes(x = value, color = name, linetype = name), linewidth = lw, key_glyph = draw_key_path) +
       geom_vline(xintercept = rho_ss, linewidth = lw) +
-      labs(x = TeX('$\\rho(\\delta WS_1, \\delta WS_2)$')) +
+      labs(x = TeX('$\\hat{\\rho}(\\delta WS_1, \\delta WS_2)$')) +
       scale_color_manual(values = c('blue','red','gray'),
                          labels = c('2-step lmer', '1-step stan', 'sim'),
                          name = NULL) +
@@ -929,7 +929,7 @@ make_plot_cor <- function(plot_name, cor_name) {
       ggplot() +
       geom_density(aes(x = value, color = name, linetype = name), linewidth = lw, key_glyph = draw_key_path) +
       geom_vline(xintercept = rho_total, linewidth = lw) +
-      labs(x = TeX('$\\rho_{total}$')) +
+      labs(x = TeX('$\\hat{\\rho}_{total}$')) +
       scale_color_manual(values = c('blue','red','cyan','gray'),
                          labels = c('2-step lmer', '1-step stan', TeX('$\\delta R$'), 'sim'),
                          name = NULL) +
@@ -972,8 +972,9 @@ df2$model <- '2-step'
 df <- data.frame(name = names_coeffs,
                  true = coeffs)
 
-names_tex <- c(TeX("$c_{1}$"),TeX("$c_{2}$"),TeX("$c_{3}$"),TeX("$c_{4}$"),
-               TeX("$c_{5}$"),TeX("$c_{6}$"),TeX("$c_{7}$"))
+names_tex <- c(TeX("$\\hat{c}_{1}$"),TeX("$\\hat{c}_{2}$"),TeX("$\\hat{c}_{3}$"),
+               TeX("$\\hat{c}_{4}$"), TeX("$\\hat{c}_{5}$"),TeX("$\\hat{c}_{6}$"),
+               TeX("$\\hat{c}_{7}$"))
 
 
 pl_list <- list()
@@ -1015,7 +1016,7 @@ df2$model <- '2-step'
 df <- data.frame(name = names_sds,
                  true = sds_sim)
 
-names_tex <- c(TeX("$\\phi_{S2S}$"),TeX("$\\tau$"),TeX("$\\phi_{SS}$"))
+names_tex <- c(TeX("$\\hat{\\phi}_{S2S}$"),TeX("$\\hat{\\tau}$"),TeX("$\\hat{\\phi}_{SS}$"))
 pl_list <- list()
 for(i in 1:length(names_sds)) {
   pl_list[[i]] <- local({
