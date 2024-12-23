@@ -30,6 +30,7 @@ theme_set(theme_bw() + theme(#panel.grid.minor = element_blank(),
   plot.subtitle = element_text(size = size_st),
   legend.text = element_text(size = size_st),
   legend.title = element_text(size = size_st),
+  plot.tag = element_text(size = size_title),
   legend.key.width = unit(1, "cm"),
   legend.box.background = element_rect(colour = "black"),
   panel.grid = element_line(color = "gray",linewidth = 0.75),
@@ -155,7 +156,8 @@ p1 <- df_eq %>% pivot_longer(c(sd_dB_lmer, sd_dB_inla)) %>%
                      labels=c("inla", "lmer")) +
   scale_shape_manual(values=c(16,17),
                      labels=c("inla", "lmer")) +
-  theme(legend.position = c(0.85,0.75))
+  theme(legend.position = c(0.85,0.75)) +
+  labs(tag = '(a)')
 
 p2 <- df_stat %>% pivot_longer(c(sd_dS_lmer, sd_dS_inla)) %>%
   ggplot() +
@@ -171,11 +173,16 @@ p2 <- df_stat %>% pivot_longer(c(sd_dS_lmer, sd_dS_inla)) %>%
                      labels=c("inla", "lmer")) +
   scale_shape_manual(values=c(16,17),
                      labels=c("inla", "lmer")) +
-  theme(legend.position = c(0.85,0.75))
+  theme(legend.position = c(0.85,0.75)) +
+  labs(tag = '(b)')
 
 plot_name <- 'figure_1'
 ggsave(file.path(path_plot, sprintf('%s.pdf', plot_name)), patchwork::wrap_plots(p1,p2),
        width = 2 * wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_a.pdf', plot_name)), p1,
+       width = wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_b.pdf', plot_name)), p2,
+       width = wid, height = asp * wid)
 
 
 ### figure 2
@@ -271,7 +278,8 @@ p1 <- ggplot(df, aes(x = value, color = model, linetype = type)) +
   guides(color = guide_legend(title=NULL), linetype = guide_legend(title=NULL)) +
   theme(legend.position = "inside",
         legend.position.inside = c(0.5,0.77),
-        legend.key.width = unit(2,'cm'))
+        legend.key.width = unit(2,'cm')) +
+  labs(tag = '(a)')
 
 
 df <- data.frame(res_val[,c(2,5,8)], res_sd[,c(2,5)]) %>%
@@ -296,7 +304,8 @@ p2 <- ggplot(df, aes(x = value, color = model, linetype = type)) +
   scale_color_manual(values = c('red','blue'), name = NULL) +
   scale_shape_manual(values = c(16,17), name = NULL) +
   guides(color = guide_legend(title=NULL), linetype = guide_legend(title=NULL)) +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  labs(tag = '(b)')
 
 
 df <- data.frame(res_val[,c(3,6,9)], res_sd[,c(3,6)]) %>%
@@ -321,10 +330,17 @@ p3 <- ggplot(df, aes(x = value, color = model, linetype = type)) +
   scale_color_manual(values = c('red','blue'), name = NULL) +
   scale_shape_manual(values = c(16,17), name = NULL) +
   guides(color = guide_legend(title=NULL), linetype = guide_legend(title=NULL)) +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  labs(tag = '(c)')
 
 ggsave(file.path(path_plot, sprintf('%s.pdf', plot_name)), wrap_plots(p1,p2,p3),
        width = 3 * wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_a.pdf', plot_name)), p1,
+       width = wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_b.pdf', plot_name)), p2,
+       width = wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_c.pdf', plot_name)), p3,
+       width = wid, height = asp * wid)
 
 ################################################################################
 ######### Figure 5
@@ -382,7 +398,8 @@ p1 <- df %>%
   theme(legend.position = c(0.5,0.8),
         legend.key.width = unit(2,'cm')) +
   labs(x = expression(paste(widehat(phi)[SS]))) +
-  lims(y = c(0,100))
+  lims(y = c(0,100)) +
+  labs(tag = '(a)')
 
 
 
@@ -421,7 +438,8 @@ p2 <- df %>%
   guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
   theme(legend.position = c(0.2,0.8),
         legend.key.width = unit(2,'cm')) +
-  labs(x = expression(paste(widehat(tau))))
+  labs(x = expression(paste(widehat(tau)))) +
+  labs(tag = '(b)')
 
 
 
@@ -450,10 +468,17 @@ p3 <- df %>%
   guides(color = guide_legend(title = NULL)) +
   theme(legend.position = c(0.15,0.9),
         legend.key.width = unit(2,'cm')) +
-  labs(x = expression(paste(widehat(phi)[S2S])), y = 'density')
+  labs(x = expression(paste(widehat(phi)[S2S])), y = 'density') +
+  labs(tag = '(c)')
 
 ggsave(file.path(path_plot, sprintf('%s.pdf', plot_name)), wrap_plots(p1,p2,p3),
        width = 3 * wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_a.pdf', plot_name)), p1,
+       width = wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_b.pdf', plot_name)), p2,
+       width = wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_c.pdf', plot_name)), p3,
+       width = wid, height = asp * wid)
 
 ################################################################################
 ######### Figure 6
@@ -499,7 +524,8 @@ p1 <- df %>%
   theme(legend.position = c(0.5,0.8),
         legend.key.width = unit(2,'cm')) +
   labs(x = expression(paste(widehat(phi)[SS]))) +
-  lims(y = c(0,100))
+  lims(y = c(0,100)) +
+  labs(tag = '(a)')
 
 
 
@@ -530,7 +556,8 @@ p2 <- df %>%
   guides(color = guide_legend(title = NULL), linetype = guide_legend(title = NULL)) +
   theme(legend.position = c(0.2,0.8),
         legend.key.width = unit(2,'cm')) +
-  labs(x = expression(paste(widehat(tau))))
+  labs(x = expression(paste(widehat(tau)))) +
+  labs(tag = '(b)')
 
 
 df <- data.frame(CB14 = res_phis2s[,1], Italy = res_sd_lmer_it[,1]) %>%
@@ -552,11 +579,18 @@ p3 <- df %>%
   guides(color = guide_legend(title = NULL)) +
   theme(legend.position = c(0.85,0.9),
         legend.key.width = unit(2,'cm')) +
-  labs(x = expression(paste(widehat(phi)[S2S])))
+  labs(x = expression(paste(widehat(phi)[S2S]))) +
+  labs(tag = '(c)', y = 'density')
 
 ggsave(file.path(path_plot, sprintf('%s.pdf', plot_name)), 
        patchwork::wrap_plots(p1,p2,p3),
        width = 3 * wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_a.pdf', plot_name)), p1,
+       width = wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_b.pdf', plot_name)), p2,
+       width = wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_c.pdf', plot_name)), p3,
+       width = wid, height = asp * wid)
 
 ################################################################################
 ######### Figure 7
@@ -637,6 +671,96 @@ ggsave(file.path(path_plot, sprintf('%s.pdf', plot_name)), pl,
 ######### Figure 8
 plot_name <- 'figure_8'
 
+names <- c('full','dS','dS(N>10)','dR')
+set1 <- RColorBrewer::brewer.pal(7, "Set1")
+coeff_vs <- -0.394575970
+
+load(file = file.path(path_res, sprintf('res_vs_ita18_%s.Rdata', 'CB')))
+res_val_cb <- res_val
+res_ci_diff_cb <- res_ci_diff
+
+load(file = file.path(path_res, sprintf('res_vs_ita18_%s.Rdata', 'italy')))
+res_val_it <- res_val
+res_ci_diff_it <- res_ci_diff
+
+df <- rbind(data.frame(res_val_cb[,c(1,5,10,15)], data = 'CB14'),
+            data.frame(res_val_it[,c(1,5,10,15)], data = 'Italy')) %>%
+  set_names(c(names, 'data')) %>%
+  pivot_longer(!data)
+df$name <- factor(df$name, names)
+
+df_density <- df %>%
+  group_by(name, data) %>%
+  do({
+    dens <- density(.$value)
+    data.frame(value = dens$x, density = dens$y)
+  })
+
+p1 <- ggplot(df, aes(x = value, color = name, linetype = data, shape = name)) +
+  geom_density(linewidth = lw, key_glyph = draw_key_path) +
+  geom_vline(xintercept = coeff_vs, linewidth = lw) +
+  geom_point(data = df_density %>% filter(row_number() %% 20 == 0),
+             aes(x = value, y = density), size = sp) +
+  #scale_color_brewer(palette = 'Set1') +
+  scale_color_manual(values=set1,
+                     labels = c('full',TeX('$\\widehat{\\delta S}$'),
+                                TeX('$\\widehat{\\delta S}$ ($N \\geq 10$)'),
+                                TeX('$\\widehat{\\delta R}$'))) +
+  scale_shape_manual(values = c(16,17,15,11), 
+                     labels = c('full',TeX('$\\widehat{\\delta S}$'),
+                                TeX('$\\widehat{\\delta S}$ ($N \\geq 10$)'),
+                                TeX('$\\widehat{\\delta R}$')),
+                     name = NULL) +
+  guides(color = guide_legend(title=NULL), linetype = guide_legend(title=NULL)) +
+  labs(x = TeX('$c_7$')) +
+  theme(legend.position = c(0.2,0.8),
+        legend.box = "horizontal") +
+  labs(tag = '(a)')
+
+
+df <- rbind(data.frame(res_ci_diff_cb, data = 'CB14'),
+            data.frame(res_ci_diff_it, data = 'Italy')) %>%
+  set_names(c(names, 'data')) %>%
+  pivot_longer(!data)
+df$name <- factor(df$name, names)
+
+df_density <- df %>%
+  group_by(name, data) %>%
+  do({
+    dens <- density(.$value)
+    data.frame(value = dens$x, density = dens$y)
+  })
+
+xlab <- expression(paste(CI[0.9],'(',c[7],')'))
+p2 <- ggplot(df, aes(x = value, color = name, linetype = data, shape = name)) +
+  geom_density(linewidth = lw, key_glyph = draw_key_path) +
+  geom_point(data = df_density %>% filter(row_number() %% 20 == 0),
+             aes(x = value, y = density), size = sp) +
+  #scale_color_brewer(palette = 'Set1') +
+  scale_color_manual(values=set1,
+                     labels = c('full',TeX('$\\widehat{\\delta S}$'),
+                                TeX('$\\widehat{\\delta S}$ ($N \\geq 10$)'),
+                                TeX('$\\widehat{\\delta R}$'))) +
+  scale_shape_manual(values = c(16,17,15,11), 
+                     labels = c('full',TeX('$\\widehat{\\delta S}$'),
+                                TeX('$\\widehat{\\delta S}$ ($N \\geq 10$)'),
+                                TeX('$\\widehat{\\delta R}$')),
+                     name = NULL) +
+  guides(color = guide_legend(title=NULL), linetype = guide_legend(title=NULL)) +
+  labs(x = xlab) +
+  theme(legend.position = c(0.7,0.8), legend.box = "horizontal") +
+  labs(x = xlab) +
+  labs(tag = '(b)')
+
+ggsave(file.path(path_plot, sprintf('%s.pdf', plot_name)),
+       wrap_plots(p1 + theme(legend.position = 'none'), p2),
+       width = 2 * wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_a.pdf', plot_name)),
+       p1 + theme(legend.position = 'none'),
+       width = wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_b.pdf', plot_name)),p2,
+       width = wid, height = asp * wid)
+
 ################################################################################
 ######### Figure 9
 plot_name <- 'figure_9'
@@ -704,7 +828,8 @@ p1 <- data.frame(res_spatial[,c(4,7)],res_spatial_tot[,4]) %>% set_names('m1','m
                      labels = c('full',
                                 TeX("$\\widehat{\\delta R}$"),
                                 TeX("$\\widehat{\\delta S}$")),
-                     name = NULL)
+                     name = NULL) +
+  labs(tag = '(a)')
 
 p2 <- data.frame(m1 = res_spatial[,5]^2 / (1/res_spatial[,3] + res_spatial[,5]^2),
                  m1 = res_spatial_tot[,5]^2 / (1/res_spatial_tot[,3] + res_spatial_tot[,5]^2),
@@ -725,11 +850,16 @@ p2 <- data.frame(m1 = res_spatial[,5]^2 / (1/res_spatial[,3] + res_spatial[,5]^2
                         labels = c('full',
                                    TeX("$\\widehat{\\delta R}$"),
                                    TeX("$\\widehat{\\delta S}$")),
-                        name = NULL)
+                        name = NULL) +
+  labs(tag = '(b)')
 
 ggsave(file.path(path_plot, sprintf('%s.pdf', plot_name)), 
        patchwork::wrap_plots(p1,p2),
        width = 2 * wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_a.pdf', plot_name)), p1,
+       width = wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_b.pdf', plot_name)), p2,
+       width = wid, height = asp * wid)
 
 
 
@@ -762,7 +892,8 @@ p1 <- data.frame(res_cell[,c(4,10,6)]) %>% set_names(c('full','dR','dWS')) %>%
                      name = NULL) +
   scale_linetype_manual(values = c(2,4,1),
                         labels = c(TeX("$\\delta R$"), TeX("$\\widehat{\\delta WS}$"), "full"),
-                        name = NULL)
+                        name = NULL) +
+  labs(tag = '(a)')
 
 p2 <- data.frame(res_cell_fix[,c(1,7,4)]) %>% set_names(c('full','dR','dWS')) %>%
   pivot_longer(everything()) %>%
@@ -777,7 +908,8 @@ p2 <- data.frame(res_cell_fix[,c(1,7,4)]) %>% set_names(c('full','dR','dWS')) %>
                      name = NULL) +
   scale_linetype_manual(values = c(2,4,1),
                         labels = c(TeX("$\\delta R$"), TeX("$\\widehat{\\delta WS}$"), "full"),
-                        name = NULL)
+                        name = NULL) +
+  labs(tag = '(b)')
 
 p3 <- data.frame(full = res_cell[,1]^2/res_cell_sdlme[,3]^2,
                  dR = res_cell[,7]^2/res_cell_sdlme[,3]^2,
@@ -793,7 +925,8 @@ p3 <- data.frame(full = res_cell[,1]^2/res_cell_sdlme[,3]^2,
                      name = NULL) +
   scale_linetype_manual(values = c(2,4,1),
                         labels = c(TeX("$\\delta R$"), TeX("$\\widehat{\\delta WS}$"), "full"),
-                        name = NULL)
+                        name = NULL) +
+  labs(tag = '(c)')
 
 p4 <- data.frame(res_cell_cor[,c(4,6,5)]) %>%
   set_names(c('full','dR','dWS')) %>%
@@ -808,11 +941,20 @@ p4 <- data.frame(res_cell_cor[,c(4,6,5)]) %>%
                      name = NULL) +
   scale_linetype_manual(values = c(2,4,1),
                         labels = c(TeX("$\\delta R$"), TeX("$\\widehat{\\delta WS}$"), "full"),
-                        name = NULL)
+                        name = NULL) +
+  labs(tag = '(d)')
 
 ggsave(file.path(path_plot, sprintf('%s.pdf', plot_name)), 
        wrap_plots(p1,p2,p3,p4),
        width = 2 * wid, height = 2 * asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_a.pdf', plot_name)), p1,
+       width = wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_b.pdf', plot_name)), p2,
+       width = wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_c.pdf', plot_name)), p3,
+       width = wid, height = asp * wid)
+ggsave(file.path(path_plot, sprintf('%s_d.pdf', plot_name)), p4,
+       width = wid, height = asp * wid)
 
 
 
@@ -871,78 +1013,91 @@ make_plot_cor <- function(plot_name, cor_name) {
     (sigma_tot1 * sigma_tot2)
   
   ltm <- c(2,4,1)
-  pl <- patchwork::wrap_plots(
-    data.frame(a = mat_cor[,1],b = mat_cor_stan[,1], z = mat_cor_sample[,1]) %>%
-      pivot_longer(everything()) %>%
-      ggplot() +
-      geom_density(aes(x = value, color = name, linetype = name), linewidth = lw, key_glyph = draw_key_path) +
-      geom_vline(xintercept = rho_s2s, linewidth = lw) +
-      labs(x = TeX('$\\hat{\\rho}(\\delta S_1, \\delta S_2)$')) +
-      scale_color_manual(values = c('blue','red','gray'),
-                         labels = c('2-step lmer', '1-step stan', 'sim'),
-                         name = NULL) +
-      scale_linetype_manual(values = ltm,
-                         labels = c('2-step lmer', '1-step stan', 'sim'),
-                         name = NULL) +
-      guides(color = guide_legend(title = NULL)) +
-      theme(legend.key.width = unit(3,'cm')) +
-      legend_move(c(0.2,0.9))
-    ,
-    
-    data.frame(a = mat_cor[,2],b = mat_cor_stan[,2], z = mat_cor_sample[,2]) %>%
-      pivot_longer(everything()) %>%
-      ggplot() +
-      geom_density(aes(x = value, color = name, linetype = name), linewidth = lw, key_glyph = draw_key_path) +
-      geom_vline(xintercept = rho_tau, linewidth = lw) +
-      labs(x = TeX('$\\hat{\\rho}(\\delta B_1, \\delta B_2)$')) +
-      scale_color_manual(values = c('blue','red','gray'),
-                         labels = c('2-step lmer', '1-step stan', 'sim'),
-                         name = NULL) +
-      scale_linetype_manual(values = ltm,
-                            labels = c('2-step lmer', '1-step stan', 'sim'),
-                            name = NULL) +
-      guides(color = guide_legend(title = NULL)) +
-      theme(legend.position = 'none',
-            legend.key.width = unit(3,'cm')) 
-    ,
-    
-    data.frame(a = mat_cor[,3],b = mat_cor_stan[,3], z = mat_cor_sample[,3]) %>%
-      pivot_longer(everything()) %>%
-      ggplot() +
-      geom_density(data.frame(x = mat_cor_sample[,3]),
-                   mapping = aes(x = x), color = 'gray', linewidth = lw) +
-      geom_density(aes(x = value, color = name, linetype = name), linewidth = lw, key_glyph = draw_key_path) +
-      geom_vline(xintercept = rho_ss, linewidth = lw) +
-      labs(x = TeX('$\\hat{\\rho}(\\delta WS_1, \\delta WS_2)$')) +
-      scale_color_manual(values = c('blue','red','gray'),
-                         labels = c('2-step lmer', '1-step stan', 'sim'),
-                         name = NULL) +
-      scale_linetype_manual(values = ltm,
-                            labels = c('2-step lmer', '1-step stan', 'sim'),
-                            name = NULL) +
-      guides(color = guide_legend(title = NULL)) +
-      theme(legend.position = 'none',
-            legend.key.width = unit(3,'cm')) 
-    ,
-    data.frame(a = mat_cor[,5],b = mat_cor_stan[,4],c = mat_cor[,4], z = rho_total_sample) %>%
-      pivot_longer(everything()) %>%
-      ggplot() +
-      geom_density(aes(x = value, color = name, linetype = name), linewidth = lw, key_glyph = draw_key_path) +
-      geom_vline(xintercept = rho_total, linewidth = lw) +
-      labs(x = TeX('$\\hat{\\rho}_{total}$')) +
-      scale_color_manual(values = c('blue','red','cyan','gray'),
-                         labels = c('2-step lmer', '1-step stan', TeX('$\\delta R$'), 'sim'),
-                         name = NULL) +
-      scale_linetype_manual(values = c(4,2,6,1),
-                         labels = c('2-step lmer', '1-step stan', TeX('$\\delta R$'), 'sim'),
-                         name = NULL) +
-      guides(color = guide_legend(title = NULL)) +
-      theme(legend.position = c(0.2,0.8),
-            legend.key.width = unit(3,'cm')) +
-      legend_move(c(0.2,0.8))
-  )
+
+  p1 <- data.frame(a = mat_cor[,1],b = mat_cor_stan[,1], z = mat_cor_sample[,1]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name, linetype = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_s2s, linewidth = lw) +
+    labs(x = TeX('$\\hat{\\rho}(\\delta S_1, \\delta S_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim'),
+                       name = NULL) +
+    scale_linetype_manual(values = ltm,
+                          labels = c('2-step lmer', '1-step stan', 'sim'),
+                          name = NULL) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.key.width = unit(3,'cm')) +
+    legend_move(c(0.2,0.9)) +
+    labs(tag = '(a)')
+  
+  
+  p2 <- data.frame(a = mat_cor[,2],b = mat_cor_stan[,2], z = mat_cor_sample[,2]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name, linetype = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_tau, linewidth = lw) +
+    labs(x = TeX('$\\hat{\\rho}(\\delta B_1, \\delta B_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim'),
+                       name = NULL) +
+    scale_linetype_manual(values = ltm,
+                          labels = c('2-step lmer', '1-step stan', 'sim'),
+                          name = NULL) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(3,'cm')) +
+    labs(tag = '(b)')
+  
+  
+  p3 <- data.frame(a = mat_cor[,3],b = mat_cor_stan[,3], z = mat_cor_sample[,3]) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(data.frame(x = mat_cor_sample[,3]),
+                 mapping = aes(x = x), color = 'gray', linewidth = lw) +
+    geom_density(aes(x = value, color = name, linetype = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_ss, linewidth = lw) +
+    labs(x = TeX('$\\hat{\\rho}(\\delta WS_1, \\delta WS_2)$')) +
+    scale_color_manual(values = c('blue','red','gray'),
+                       labels = c('2-step lmer', '1-step stan', 'sim'),
+                       name = NULL) +
+    scale_linetype_manual(values = ltm,
+                          labels = c('2-step lmer', '1-step stan', 'sim'),
+                          name = NULL) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = 'none',
+          legend.key.width = unit(3,'cm')) +
+    labs(tag = '(c)')
+  
+  p4 <- data.frame(a = mat_cor[,5],b = mat_cor_stan[,4],c = mat_cor[,4], z = rho_total_sample) %>%
+    pivot_longer(everything()) %>%
+    ggplot() +
+    geom_density(aes(x = value, color = name, linetype = name), linewidth = lw, key_glyph = draw_key_path) +
+    geom_vline(xintercept = rho_total, linewidth = lw) +
+    labs(x = TeX('$\\hat{\\rho}_{total}$')) +
+    scale_color_manual(values = c('blue','red','cyan','gray'),
+                       labels = c('2-step lmer', '1-step stan', TeX('$\\delta R$'), 'sim'),
+                       name = NULL) +
+    scale_linetype_manual(values = c(4,2,6,1),
+                          labels = c('2-step lmer', '1-step stan', TeX('$\\delta R$'), 'sim'),
+                          name = NULL) +
+    guides(color = guide_legend(title = NULL)) +
+    theme(legend.position = c(0.2,0.8),
+          legend.key.width = unit(3,'cm')) +
+    legend_move(c(0.2,0.8)) +
+    labs(tag = '(d)')
+  
+  pl <- patchwork::wrap_plots(p1,p2,p3,p4)
   ggsave(file.path(path_plot, sprintf('%s.pdf', plot_name)), pl,
          width = 2 * wid, height = 2 * asp * wid)
+  ggsave(file.path(path_plot, sprintf('%s_a.pdf', plot_name)), p1,
+         width = wid, height = asp * wid)
+  ggsave(file.path(path_plot, sprintf('%s_b.pdf', plot_name)), p2,
+         width = wid, height = asp * wid)
+  ggsave(file.path(path_plot, sprintf('%s_c.pdf', plot_name)), p3,
+         width = wid, height = asp * wid)
+  ggsave(file.path(path_plot, sprintf('%s_d.pdf', plot_name)), p4,
+         width = wid, height = asp * wid)
 }
 make_plot_cor(plot_name = 'figure_12', cor_name = 'high')
 make_plot_cor(plot_name = 'figure_13', cor_name = 'eas')
@@ -976,6 +1131,9 @@ names_tex <- c(TeX("$\\hat{c}_{1}$"),TeX("$\\hat{c}_{2}$"),TeX("$\\hat{c}_{3}$")
                TeX("$\\hat{c}_{4}$"), TeX("$\\hat{c}_{5}$"),TeX("$\\hat{c}_{6}$"),
                TeX("$\\hat{c}_{7}$"))
 
+names_tags <- c('a','b','c','d','e','f','g')
+
+plot_name <- 'figure_14'
 
 pl_list <- list()
 for(i in 1:length(names_coeffs)) {
@@ -996,12 +1154,14 @@ for(i in 1:length(names_coeffs)) {
       scale_linetype_manual(values = c(1,2), name = NULL) +
       labs(x = names_tex[i]) +
       theme(legend.position = pos,
-            legend.key.width = unit(3,'cm'))
+            legend.key.width = unit(3,'cm')) +
+      labs(tags = paste0('(',names_tags[i],')'))
   })
+  ggsave(file.path(path_plot, sprintf('%s_%s.pdf', plot_name, names_tags[i])), pl_list[[i]],
+         width = wid, height = asp * wid)   
 }
 pl <- wrap_plots(pl_list)
 
-plot_name <- 'figure_14'
 ggsave(file.path(path_plot, sprintf('%s.pdf', plot_name)), pl,
        width = 3 * wid, height = 3* asp * wid)       
 
@@ -1017,6 +1177,7 @@ df <- data.frame(name = names_sds,
                  true = sds_sim)
 
 names_tex <- c(TeX("$\\hat{\\phi}_{S2S}$"),TeX("$\\hat{\\tau}$"),TeX("$\\hat{\\phi}_{SS}$"))
+plot_name <- 'figure_15'
 pl_list <- list()
 for(i in 1:length(names_sds)) {
   pl_list[[i]] <- local({
@@ -1036,11 +1197,13 @@ for(i in 1:length(names_sds)) {
       scale_linetype_manual(values = c(1,2), name = NULL) +
       labs(x = names_tex[i]) +
       theme(legend.position = pos,
-            legend.key.width = unit(3,'cm'))
+            legend.key.width = unit(3,'cm')) +
+      labs(tags = paste0('(',names_tags[i],')'))
   })
+  ggsave(file.path(path_plot, sprintf('%s_%s.pdf', plot_name, names_tags[i])), pl_list[[i]],
+         width = wid, height = asp * wid)   
 }
 pl <- wrap_plots(pl_list)
 
-plot_name <- 'figure_15'
 ggsave(file.path(path_plot, sprintf('%s.pdf', plot_name)), pl,
        width = 3 * wid, height = asp * wid)
